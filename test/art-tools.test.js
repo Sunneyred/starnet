@@ -44,8 +44,8 @@ const BLEED = draw(2700, 3600, g => { ['#102030', '#c04020', '#20a060', '#e0d040
   const T = makeArtTools({ fsp, pathMod: path, root: ROOT });
 
   /* ---- wiring: object = capability ---- */
-  const grants = CAP_REGISTRY.studio.filter(g => ['product_catalog', 'art_inspect', 'art_prepare'].includes(g.tool));
-  A.eq(grants.map(g => g.tool).sort(), ['art_inspect', 'art_prepare', 'product_catalog'], 'a STUDIO prop grants all three art tools');
+  const grants = CAP_REGISTRY.studio.filter(g => ['product_catalog', 'art_inspect', 'art_prepare', 'mockup_render'].includes(g.tool));
+  A.eq(grants.map(g => g.tool).sort(), ['art_inspect', 'art_prepare', 'mockup_render', 'product_catalog'], 'a STUDIO prop grants the four art tools');
   for (const t of T.tools) {
     const g = grants.find(x => x.tool === t.name);
     A.eq([t.capability, t.scope, t.requiresConsent], ['studio', g.scope, g.requiresConsent], t.name + ': the tool and its CAP_REGISTRY grant agree on scope and consent');
@@ -55,7 +55,7 @@ const BLEED = draw(2700, 3600, g => { ['#102030', '#c04020', '#20a060', '#e0d040
   A.eq([T.catalogTool.requiresConsent, T.inspectTool.requiresConsent], [false, false], 'the two reads are consent-free');
   const reg = { names: [], register(t) { this.names.push(t.name); } };
   T.register(reg);
-  A.eq(reg.names, ['product_catalog', 'art_inspect', 'art_prepare'], 'register() hands over exactly the three tools');
+  A.eq(reg.names, ['product_catalog', 'art_inspect', 'art_prepare', 'mockup_render'], 'register() hands over exactly the four tools that need no design record');
   A.throws(() => makeArtTools({}), 'the tools refuse to exist without a workspace root');
 
   /* ---- product_catalog ---- */

@@ -45,10 +45,15 @@ function clampPerHour(v) {
   return Math.min(MAX_PER_HOUR_CEILING, n);
 }
 
+const INTAKE_DESIGN = 'design';   // the one folder intake mode (Art Studio Phase 2)
 function normalizeConfig(kind, c) {
   c = (c && typeof c === 'object' && !Array.isArray(c)) ? c : {};
   const out = { task: str(c.task, TASK_MAX) };
   if (kind === 'folder') out.path = str(c.path, PATH_MAX);
+  // ART STUDIO (Phase 2, additive): `intake: 'design'` marks an ART DROP folder — each dropped image is copied into
+  // the line's working folder and recorded as a design BEFORE the line starts (sidecar/art/intake.js). Absent on
+  // every other trigger, so their records and behaviour are unchanged.
+  if (kind === 'folder' && c.intake === INTAKE_DESIGN) out.intake = INTAKE_DESIGN;
   return out;
 }
 
@@ -145,6 +150,10 @@ function validateInput(body, opts) {
     f.config = {};
     if (b.config.task !== undefined || !partial) f.config.task = str(b.config.task, TASK_MAX);
     if (b.config.path !== undefined) f.config.path = str(b.config.path, PATH_MAX);
+    if (b.config.intake !== undefined && b.config.intake !== '' && b.config.intake !== null) {
+      if (b.config.intake !== INTAKE_DESIGN) return { ok: false, error: 'config.intake must be "' + INTAKE_DESIGN + '" or left out' };
+      f.config.intake = INTAKE_DESIGN;
+    }
   }
   if (!partial && f.kind === 'folder' && !(f.config && f.config.path)) return { ok: false, error: 'a folder trigger needs config.path (the folder to watch)' };
   return { ok: true, fields: f };

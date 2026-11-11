@@ -372,7 +372,15 @@
       // every other studio write. It never modifies the original design.
       { capId: 'studio', tool: 'product_catalog', scope: 'read', requiresConsent: false, network: false },
       { capId: 'studio', tool: 'art_inspect', scope: 'read', requiresConsent: false, network: false },
-      { capId: 'studio', tool: 'art_prepare', scope: 'write', requiresConsent: true, network: false }
+      { capId: 'studio', tool: 'art_prepare', scope: 'write', requiresConsent: true, network: false },
+      // mockup_render (Phase 4) writes a new mockup png into the workspace: consent-gated like art_prepare, and local.
+      { capId: 'studio', tool: 'mockup_render', scope: 'write', requiresConsent: true, network: false },
+      // DESIGN RECORDS (Art Studio Phase 2-3): reading a dropped design's record, recording the Strategist's product
+      // plan, recording the Reviewer's verdict. The two writes touch ONLY the design record (art-designs.json) —
+      // never a file the owner made, never the network — so, like deliverable_note, they are not consent-gated.
+      { capId: 'studio', tool: 'design_get', scope: 'read', requiresConsent: false, network: false },
+      { capId: 'studio', tool: 'product_plan_submit', scope: 'write', requiresConsent: false, network: false },
+      { capId: 'studio', tool: 'design_review', scope: 'write', requiresConsent: false, network: false }
     ],
     // JUKEBOX (Spotify): querying playback/library is consent-free (read); CONTROLLING playback is an outward
     // action on the user's account/device, so it is execute + consent-gated. The OAuth session (PKCE, no secret)

@@ -39,6 +39,10 @@ const ToolProps = (() => {
     product_catalog: 'studio',
     art_inspect: 'studio',
     art_prepare: 'studio',
+    mockup_render: 'studio',
+    design_get: 'studio',
+    product_plan_submit: 'studio',
+    design_review: 'studio',
     recall_conversation: 'notebook',
     'widget.get': 'notebook',
     'widget.set': 'notebook'   // Widget definitions/readings share the notebook-object (memory) grant.
