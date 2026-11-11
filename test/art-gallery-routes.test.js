@@ -160,6 +160,29 @@ const readBody = async req => (req._body === undefined ? '' : (typeof req._body 
   A.eq(store.get(ID).status, 'approved', 'with every made product decided and one approved, the design is approved');
   A.ok(Buffer.compare(fs.readFileSync(path.join(WS, orig)), origBefore) === 0, 'the design\'s original copy is byte-identical after everything');
 
+  /* ---- resume: carry on with a design that stopped part-way ---- */
+  {
+    const asked = []; let answer = { ok: true };
+    const RS = makeArtRoutes({ store, fs, fsp, path, respondJson, readBody, resume: async r0 => { asked.push(r0.id); if (answer instanceof Error) throw answer; return answer; } });
+    r = await call(RS.resume, { body: { design: ID } });
+    A.ok(r.status === 409 && r.json.code === 'NOT_RESUMABLE' && /send back/.test(r.json.error) && asked.length === 0, 'a finished design is refused, and pointed at "send back"');
+    const stuck = await store.create({ originalName: 'Stuck.png', droppedPath: '/drops/Stuck.png', projectRoot: WS, storedRel: 'designs/pending/original.png', sha256: 'c'.repeat(64), bytes: 10, width: 100, height: 100, lineId: 'L1' });
+    r = await call(RS.resume, { body: { design: stuck.id } });
+    A.eq([r.status, r.json.ok, r.json.error, asked], [200, true, null, [stuck.id]], 'a design that stopped is handed back to the line');
+    answer = { ok: false, error: 'the line reached its $5.00 daily limit' };
+    r = await call(RS.resume, { body: { design: stuck.id } });
+    A.eq([r.status, r.json.ok, r.json.error], [200, false, 'the line reached its $5.00 daily limit'], 'when the line refuses, its own reason is passed on — never "started"');
+    answer = new Error('boom');
+    r = await call(RS.resume, { body: { design: stuck.id } });
+    A.eq([r.json.ok, r.json.error], [false, 'boom'], 'a thrown restart is reported as not started');
+    r = await call(noSpend.resume, { body: { design: stuck.id } });
+    A.eq(r.status, 501, 'a station that cannot restart the line says so');
+    A.eq((await call(RS.resume, { body: { design: 'nope' } })).status, 404, 'an unknown design is a 404');
+    await store.fail(stuck.id, 'intake', 'copy failed');
+    r = await call(RS.resume, { body: { design: stuck.id } });
+    A.ok(r.status === 409 && /drop the file again/.test(r.json.error), 'a failed design is refused with what to do instead');
+  }
+
   /* ---- setup: two folders inside the one the owner chose ---- */
   {
     const chosen = path.join(ROOT, 'Art Station'); fs.mkdirSync(chosen, { recursive: true });

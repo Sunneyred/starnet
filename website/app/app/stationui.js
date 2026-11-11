@@ -1083,6 +1083,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     mywork: { label: 'MY WORK', first: 'deliverables', tabs: [
       { id: 'tasks', k: 'tasks', label: 'TASKS', tip: 'Planned work you track — chats and routines live in COMMS' },
       { id: 'deliverables', k: 'deliverables', label: 'DELIVERABLES', tip: 'Everything your crew finished, with its files' },
+      { id: 'gallery', k: 'gallery', label: 'GALLERY', tip: 'Your dropped designs: products, print files, mockups — and your decision' },
       { id: 'recipes', k: 'marketplace', label: 'RECIPES', tip: 'Ready-made jobs to start',
         is: () => typeof Marketplace !== 'undefined' && Marketplace.currentTab && Marketplace.currentTab() === 'recipes',
         open: () => { if (typeof App !== 'undefined' && App.openRecipes) App.openRecipes(); } }

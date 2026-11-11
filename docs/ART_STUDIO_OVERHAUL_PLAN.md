@@ -2,7 +2,8 @@
 
 > **Owner:** Sunneyred (fork `Sunneyred/starnet`, forked from `androoAGI/starnet` at `74fcd504`, v0.14.1).
 > **Written:** 2026-11-10, grounded against that commit. **Executor:** Claude Fable 5.2 (or any coding agent).
-> **Status:** NOT STARTED. Update the STATUS line under each phase as work lands (commit hash + date).
+> **Status:** Phases 0–5 built (the v1 promise: drop a PNG, it ends up in the Gallery). Phases 6–8 wait for the owner.
+> Update the STATUS line under each phase as work lands (commit hash + date).
 
 ---
 
@@ -414,7 +415,10 @@ Tests (add to `test/fast.list`):
 
 ### Phase 2 — Design records and the Strategist
 
-**STATUS:** not started
+**STATUS:** done on branch `art-studio/phase-2-design-records` (commit `b4dcf64a`), 2026-11-11. Built with Phase 3
+in one commit: `design-store.js`, `plan-schema.js`, `intake.js` (the ART DROP folder-trigger hook), and the tools
+`design_get` and `product_plan_submit`. Plan vs code: tool names use underscores (`product_plan_submit`, not
+`product.plan`) because every art tool is a `studio` grant and the registry's existing art tools are named that way.
 
 **2a. `sidecar/art/design-store.js`:** an atomic store, one record per dropped design:
 ```
@@ -461,7 +465,9 @@ record and the copied file (put it in `test/http.list` if it goes through routes
 
 ### Phase 3 — Designer and Reviewer loop
 
-**STATUS:** not started
+**STATUS:** done on branch `art-studio/phase-2-design-records` (commit `b4dcf64a`), 2026-11-11. `art_prepare` records
+each print file on its design; `design_review` records the verdict and caps redo rounds at two (then `needs-owner`).
+The step that checks is called INSPECTOR on the floor (see Phase 5).
 
 - **DESIGNER** standing instructions: for each product in `plan.products`, call `art.prepare` with the product,
   placement and fabric, and choose options such as trim, fit mode, anchor and recolor strategy. One variant per
@@ -479,7 +485,8 @@ cap behavior, and the record's final labels.
 
 ### Phase 4 — Mockup Lab
 
-**STATUS:** not started
+**STATUS:** done on branch `art-studio/phase-2-design-records` (commit `77bed3e9`), 2026-11-11. Eight DRAWN templates
+(flat pictures, not photos) and owner template packs with a required license field. No upstream sprite is used.
 
 **4a. Template pack format** (`sidecar/art/templates/<packId>/`):
 ```
@@ -516,7 +523,46 @@ and a bad quad rejected.
 
 ### Phase 5 — The ART LINE and the Gallery
 
-**STATUS:** not started
+**STATUS:** done on branch `art-studio/phase-5-gallery` (commits `74a22ea1` and the one carrying this record),
+2026-11-11. The acceptance below is held by `test/art-line.e2e.test.js` (real host, real tool calls, scripted
+provider): a dropped PNG reaches READY through six real runs, survives a restart, is not taken twice, and a new
+drop is stopped at the day's limit.
+
+**What was built, and where it differs from the text below (the code wins):**
+- **Roles.** The checking step is `INSPECTOR`, not `REVIEWER`: its own role, so a line stamped from the shelf lands
+  with the art instructions instead of the generic reviewer's. Four roles added to `BAY_ROLES`; their instructions
+  live in `workflowline.js` (one copy).
+- **Budget.** The INBOX stamps with `$5/day`, `$2/design` (not `$1`: four steps with vision calls would stop mid-line)
+  and `maxHops: 8` (the line's worst case is 7 stages after the first; the station default of 6 would cut a third
+  pass off before its mockups).
+- **Compute and STUDIO.** A blueprint is a line, not a room, so it places neither. The Gallery's setup reads
+  `station.bayObjects` for every step and says in words when a step has no STUDIO in reach. On a new station the
+  starter room has both, and `test/gallery.test.js` proves the line fits and can work there.
+- **Autonomy needed one new grant.** An unattended run may not self-approve a write. `art:write` is a curated,
+  local-only grant (Permissions panel, or one click in the Gallery) that covers `art_prepare` and `mockup_render`
+  only. Full Access is never used. Without it the run is refused, the design stays below READY, and the owner can
+  **carry on** with it after granting.
+- **Agents could not see print files.** A 4500×5400 PNG is too large for a vision model. Intake and `art_prepare`
+  now write a small JPEG "look-at" preview (on the fabric colour for fabric products), recorded on the design.
+- **Every stage first settles a Task Brief** (`brief.proceed`) — upstream's rule for consequential work in any line.
+  It costs one short model turn per stage. The art instructions tell each step not to stop and ask.
+- **5b setup lives inside the Gallery**, not a separate window: place the line, crew it, choose ONE folder
+  (`POST /api/art/setup` makes "Drop designs here" and "Studio files" inside it and trusts only the studio folder),
+  allow saving, switch the drop folder on. Provider and model use the existing onboarding. **Not built:** product
+  on/off toggles in the UI (the override file `<data>/art-products.json` works) and "watch the first drop flow".
+- **5c.** Redo re-enters the line at its entry and the STRATEGIST passes it straight on (a trigger item always
+  starts at the line's first step); it costs one short extra run. "Open folder" is not built — export says the
+  folder. `listing.txt` is composed from the record (title ideas, the agent's summary and reasons), with no extra
+  agent step. **Added:** "carry on with this design" (`POST /api/art/designs/resume`) for a design that stopped
+  part-way.
+- **Restart mid-line.** A restart BETWEEN stages of one design drops the in-flight item (upstream trigger items are
+  not durable while running). The record keeps its last recorded status, nothing is duplicated, and the Gallery
+  offers CARRY ON. It does not resume by itself.
+- **Live-verified in a browser, not yet in the Windows app.** `node dev/gallery-shots.mjs` boots a seeded sidecar
+  with Full Access OFF and the scripted art provider, then drives the real page in headless Chrome by clicking the
+  Gallery's own buttons: place the line, set up folders, allow saving, drop a PNG, wait for READY, approve, tick
+  rights, export. Every step's claim is checked against the server and a screenshot is taken. It has not been run
+  inside the packaged Windows shell with a real model; that is the owner's first check.
 
 **5a. Blueprint.** Add `art_line` to `BLUEPRINTS` in `frontend/app/worldmodel.js`, with `LINE_PLAIN` and
 `LINE_WORK` entries:

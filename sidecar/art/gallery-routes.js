@@ -8,6 +8,7 @@
      POST /api/art/designs/approve  { design, product, decision: approved|rejected|redo, note? }
      POST /api/art/designs/rights   { design, confirmed }
      POST /api/art/designs/export   { design }   copy approved products to <line folder>/export/…, with a DRAFT listing
+     POST /api/art/designs/resume   { design }   ask the line to carry on with a design that stopped before it was ready
      POST /api/art/setup            { folder }   make the two folders an art line needs inside a folder the owner chose
 
    THE LAWS
@@ -22,7 +23,7 @@
      line writes to). The drop folder is never trusted for agent writes: originals stay the owner's.
 
    makeArtRoutes({ store, fs, fsp, path, respondJson, readBody, spendOf?, rerun?, catalog?, grantState?, blessProject?, checkDropFolder? })
-     -> { designs, file, approve, rights, exportDesign, setup } */
+     -> { designs, file, approve, rights, exportDesign, resume, setup } */
 'use strict';
 
 const { DesignError } = require('./design-store.js');
@@ -162,6 +163,22 @@ function makeArtRoutes(deps) {
       note: 'Files were copied into your line\'s folder. Nothing was published or uploaded anywhere.' });
   }
 
+  /* POST /api/art/designs/resume { design } — a design can stop part-way: the app was closed mid-run, the day's budget
+     ran out, or the owner had not yet allowed the line to save files. The same image cannot simply be dropped again
+     (it is declined as already taken), so this asks the line to carry on from what the RECORD says is still missing.
+     It only asks: the answer is the line's own (queued, or the reason it was not). Finished and failed designs are
+     refused — a finished one goes back through the owner's "send back", a failed one never had a usable copy. */
+  const RESUMABLE = ['new', 'planned', 'adapting', 'reviewing', 'mocking'];
+  async function resume(req, res) {
+    const b = await body(req, res); if (!b) return;
+    const rec = store.get(String(b.design || ''));
+    if (!rec) return fail(res, 404, 'no such design');
+    if (RESUMABLE.indexOf(rec.status) < 0) return fail(res, 409, rec.status === 'failed' ? 'this design failed when it was taken, so there is nothing to carry on with — drop the file again' : 'this design is already finished — use "send back" on a product to have it redone', { code: 'NOT_RESUMABLE' });
+    if (typeof d.resume !== 'function') return fail(res, 501, 'this station cannot restart the line from here');
+    let r; try { r = await d.resume(rec); } catch (e) { r = { ok: false, error: String((e && e.message) || e) }; }
+    respondJson(res, 200, { ok: !!(r && r.ok), error: (r && r.ok) ? null : ((r && r.error) || 'the line did not start'), design: view(rec) });
+  }
+
   /* POST /api/art/setup { folder } — the owner picked ONE folder; an art line needs two that are NOT inside each other
      (a line may not watch its own output): "Drop designs here" (watched, originals, never written by agents) and
      "Studio files" (the line's working folder: copies, print files, mockups, exports). This makes both, asks the
@@ -188,7 +205,7 @@ function makeArtRoutes(deps) {
       note: 'Two folders are ready. Nothing is watching the drop folder until the line\'s trigger is switched on.' });
   }
 
-  return { designs, file, approve, rights, exportDesign, setup, _internals: { recordPaths, resolveFile, draftListing, view } };
+  return { designs, file, approve, rights, exportDesign, resume, setup, _internals: { recordPaths, resolveFile, draftListing, view } };
 }
 
 module.exports = { makeArtRoutes, recordPaths, draftListing };

@@ -1,0 +1,55 @@
+/* GALLERY (frontend/app/windows/gallery.js, Art Studio Phase 5) — the owner's designs, what the art line made of
+   each, and their decision. Theme tokens only (--ph / --text / --ph-rgb), so every phosphor set re-tints it.
+   Nothing the owner reads is under 14px. */
+.gal { display: grid; gap: 12px; padding: 4px 6px 24px; max-width: 1100px; font-size: 16px; line-height: 1.45; color: var(--text); }
+.gal :is(button,input):focus-visible { outline: 2px solid var(--ph-bright); outline-offset: 2px; }
+.gal .gal-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 2px; }
+.gal .bb.sm { min-height: 34px; padding: 6px 12px; font-size: 15px; border-radius: 8px; cursor: pointer; }
+.gal .bb.sm[aria-pressed="true"] { color: var(--ph-bright); border-color: var(--ph); background: rgba(var(--ph-rgb),.16); }
+.gal .bb.sm:disabled { opacity: .4; cursor: default; }
+.gal input[type="text"] { flex: 1 1 260px; min-height: 34px; padding: 6px 10px; font: inherit; color: var(--text); background: rgba(0,0,0,.34); border: 1px solid rgba(var(--ph-rgb),.25); border-radius: 8px; }
+.gal .gal-msg { margin: 6px 0 0; padding: 8px 10px; border: 1px solid rgba(var(--ph-rgb),.25); border-radius: 8px; background: rgba(var(--ph-rgb),.06); }
+.gal .gal-msg.bad { border-color: #ffbe3c; color: #ffd98a; background: rgba(255,190,60,.08); }
+.gal .gal-live { margin: 0; padding: 8px 10px; border-left: 3px solid var(--ph); background: rgba(var(--ph-rgb),.06); }
+.gal .gal-facts { font-size: 14px; margin-top: 4px; overflow-wrap: anywhere; }
+.gal .gal-why { margin-top: 4px; }
+.gal .gx-tag.warn { color: #ffd98a; border-color: #ffbe3c; }
+
+/* setup checklist */
+.gal-setup { border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 10px; padding: 10px 12px; background: rgba(var(--ph-rgb),.035); }
+.gal-steps { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 10px; }
+.gal-step { padding: 8px 10px; border: 1px solid rgba(var(--ph-rgb),.16); border-radius: 8px; }
+.gal-step.done { opacity: .82; }
+.gal-step.blocked { opacity: .5; }
+.gal-step-hd { display: flex; gap: 10px; align-items: baseline; }
+.gal-step-n { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border: 1px solid rgba(var(--ph-rgb),.4); border-radius: 50%; font-size: 14px; }
+.gal-step.done .gal-step-n { color: var(--ph-bright); border-color: var(--ph); background: rgba(var(--ph-rgb),.16); }
+.gal-step-t { font-size: 17px; color: var(--ph-bright); }
+.gal-step-d { margin: 4px 0 0 34px; overflow-wrap: anywhere; }
+.gal-step .gal-row { margin-left: 34px; }
+
+/* design cards */
+.gal-card { border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 10px; padding: 12px; background: rgba(var(--ph-rgb),.035); display: grid; gap: 10px; }
+.gal-card-hd { display: flex; gap: 12px; align-items: flex-start; }
+.gal-card-meta { min-width: 0; flex: 1; }
+.gal-name { font-size: 19px; color: var(--ph-bright); overflow-wrap: anywhere; }
+.gal-stopped { padding: 8px 10px; border: 1px dashed rgba(var(--ph-rgb),.4); border-radius: 8px; }
+.gal-errors { padding: 8px 10px; border: 1px solid #ffbe3c; border-radius: 8px; color: #ffd98a; background: rgba(255,190,60,.08); overflow-wrap: anywhere; }
+.gal-prod { border-top: 1px solid rgba(var(--ph-rgb),.14); padding-top: 10px; }
+.gal-prod.approved { border-left: 3px solid var(--ph); padding-left: 10px; }
+.gal-prod.rejected { opacity: .6; }
+.gal-prod-hd { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gal-prod-n { font-size: 17px; color: var(--ph-bright); }
+.gal-shots { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.gal-card-ft { border-top: 1px solid rgba(var(--ph-rgb),.14); padding-top: 10px; }
+.gal-rights { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.gal-rights input { width: 18px; height: 18px; margin-top: 3px; }
+
+/* images: shown as backgrounds once fetched (the fetch carries the launch token; a bare <img src> would not) */
+.gal-img { display: inline-flex; align-items: center; justify-content: center; width: 180px; height: 180px; flex: 0 0 auto; border: 1px solid rgba(var(--ph-rgb),.2); border-radius: 8px;
+  background: rgba(0,0,0,.34) center / contain no-repeat; font-size: 14px; color: rgba(var(--ph-rgb),.6); text-align: center; }
+.gal-img.thumb { width: 120px; height: 120px; }
+.gal-img.ready { cursor: zoom-in; }
+.gal-zoom { position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.88); cursor: zoom-out; }
+.gal-zoom img { max-width: 94vw; max-height: 94vh; object-fit: contain; }
+@media (max-width: 640px) { .gal-img { width: 132px; height: 132px; } .gal-card-hd { flex-direction: column; } }

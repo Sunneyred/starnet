@@ -296,7 +296,12 @@ for (const bp of WM.BLUEPRINTS) {
   }
   // …and the engine packs lines at least as tightly as the hand-drawn blueprints: no fewer fit a fresh starter room
   const handFit = WM.BLUEPRINTS.filter(bp => { const st = WM.create(WM.starterDoc()), z = st.rooms()[0].rects[0]; for (let y = z.y1; y <= z.y2; y++) for (let x = z.x1; x <= z.x2; x++) if (st.canPlaceBlueprint(bp.id, x, y).ok) return true; return false; }).length;
-  const engineFit = WM.BLUEPRINTS.length - grown.length;
+  /* ART STUDIO (Phase 5): counted the way a line is really PLACED — LineEdit.placeBlueprint tries the plain layout and then
+     anchors it at each clear spot (layoutNear). The folded ART LINE fits the starter room hand-drawn and anchored, but not by the
+     plain layout alone, so counting only the plain layout would call the engine looser than the drawn shelf when the product is not. */
+  const LE = require('../frontend/app/lineedit.js');
+  const engineFit = WM.BLUEPRINTS.filter(bp => { const st = WM.create(WM.starterDoc()), b = st.bounds(); return LE.placeBlueprint(st, bp.id, { x: (b.minTx + b.maxTx) >> 1, y: (b.minTy + b.maxTy) >> 1 }).ok; }).length;
+  A.ok(engineFit >= WM.BLUEPRINTS.length - grown.length, 'placing (plain layout, then anchored) fits at least every line the plain layout fits');
   A.ok(engineFit >= handFit, engineFit + ' of ' + WM.BLUEPRINTS.length + ' lines fit the starter room as it is — no fewer than the ' + handFit + ' hand-drawn blueprints that do');
 }
 

@@ -21,7 +21,6 @@
         drop is not worked — and says so. */
 'use strict';
 const A = require('./_assert.js');
-const http = require('http');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -40,106 +39,8 @@ const ROLES = ['STRATEGIST', 'DESIGNER', 'INSPECTOR', 'MOCKUP'];
 const BRIEFS = {}; for (const r of ROLES) BRIEFS[r] = WorkflowLine.defaultBrief(r);
 const AGENT = 'art-agent';
 
-/* ---------- the scripted provider: plays each step with real tool calls ---------- */
-function startMock(price) {
-  const S = { requests: [], seen: [], vision: 0, passes: {}, toolsOffered: {}, toolErrors: [] };
-  const textOf = c => (typeof c === 'string' ? c : Array.isArray(c) ? c.map(p => (p && p.text) || '').join('\n') : '');
-  // which step is this? A handed-on stage names its own instructions after "YOUR STANDING BRIEF FOR THIS STATION:" (a looped
-  // stage's prompt also quotes earlier stages, so "anywhere in the prompt" is not enough); the entry stage carries its
-  // instructions in its system prompt.
-  const MARK = 'YOUR STANDING BRIEF FOR THIS STATION:';
-  const roleOf = all => {
-    const i = all.lastIndexOf(MARK), own = i >= 0 ? all.slice(i + MARK.length, i + MARK.length + 400) : all;
-    return ROLES.find(r => own.indexOf(BRIEFS[r].does.slice(80, 170)) >= 0) || null;
-  };
-  function decide(body) {
-    const msgs = (body && body.messages) || [];
-    const all = msgs.map(m => textOf(m && m.content)).join('\n');
-    let lastUser = -1; msgs.forEach((m, i) => { if (m && m.role === 'user') lastUser = i; });
-    const done = msgs.slice(lastUser + 1).filter(m => m && m.role === 'tool');
-    const offeredNames = ((body && body.tools) || []).map(t => (t.function && t.function.name) || t.name);
-    // every stage first settles its Task Brief (the station's own rule for consequential work), then works
-    const briefTool = offeredNames.find(n => /^brief[._]proceed$/.test(n));
-    const step = done.length - (briefTool ? 1 : 0);
-    if (process.env.ART_E2E_DEBUG && done.length) console.log('[mock] ' + (roleOf(all) || '?') + ' saw: ' + textOf(done[done.length - 1].content).replace(/\s+/g, ' ').slice(0, 400));
-    for (const t of done) { const s = textOf(t.content); if (/^(error|refused|denied)|not permitted|needs your approval|was not approved/i.test(s)) S.toolErrors.push(s.slice(0, 300)); }
-    const role = roleOf(all);
-    const ids = all.match(/dsn_[a-z0-9]{6,40}/g) || [], id = ids[ids.length - 1] || '';
-    if (role) S.toolsOffered[role] = offeredNames;
-    S.seen.push({ role, id, step });
-    if (process.env.ART_E2E_DUMP && step < 0) { S.dumpN = (S.dumpN || 0) + 1; fs.writeFileSync('/tmp/art-dump-' + S.dumpN + '.txt', msgs.map(m => '### ' + m.role + '\n' + textOf(m.content)).join('\n\n')); }
-    const key = role + ':' + id, pass = S.passes[key] || 0;
-    const end = text => { S.passes[key] = pass + 1; return { text }; };
-    const tool = (name, args) => ({ tool: { name, args } });
-    const redo = /\[Art redo:/.test(all);
-    if (!role || !id) return { text: 'nothing to do' };
-    if (step < 0) return tool(briefTool, { objective: role + ': do this step for design ' + id, deliverable: 'the step\'s result, recorded on the design' });
-    if (role === 'STRATEGIST') {
-      if (redo) return end('Art redo for ' + id + ': the plan stands. Remake tee-front following the owner\'s note. [Art redo: continuing] Design id: ' + id);
-      const pv = (all.match(/Preview to LOOK at: (\S+)/) || [])[1];
-      return [tool('design_get', { design: id }), tool('image_analyze', { image: pv, prompt: 'What is in this design?' }), tool('product_catalog', {}),
-        tool('product_plan_submit', { design: id,
-          analysis: { summary: 'A magenta block with a near-black square on a white page, flat and graphic.', subjects: ['block', 'square'], mood: 'bold', palette: ['magenta', 'black'], textInArt: '' },
-          products: [{ productId: 'tee-front', fabricId: 'black', score: 88, why: 'A bold flat shape reads clearly across a shirt front.', titleIdeas: ['Magenta Block Tee'] },
-            { productId: 'sticker-4x4', score: 71, why: 'A simple outline die-cuts cleanly at sticker size.' }],
-          skipped: [{ productId: 'dad-hat-front', reason: 'The square composition is too tall for a cap front.' }] })][step]
-        || end('Planned design ' + id + ': tee-front on black, then sticker-4x4. Design id: ' + id);
-    }
-    if (role === 'DESIGNER') {
-      const first = [tool('art_prepare', { design: id, product: 'tee-front', fabric: 'black' }), tool('art_prepare', { design: id, product: 'sticker-4x4' })];
-      const again = [tool('art_prepare', { design: id, product: 'tee-front', fabric: 'black', recolor: 'outline' })];
-      return ((pass === 0 && !redo) ? first : again)[step] || end('Print files made for design ' + id + (redo ? ' [Art redo: continuing]' : '') + '. Design id: ' + id);
-    }
-    if (role === 'INSPECTOR') {
-      const first = [tool('design_get', { design: id }), tool('image_analyze', { image: 'designs/' + id + '/print/tee-front-black.preview.jpg', prompt: 'Does the art stand out from the fabric?' }),
-        tool('design_review', { design: id, product: 'tee-front', verdict: 'redo', notes: 'The near-black square vanishes into the black fabric: remake with recolor outline.' }),
-        tool('design_review', { design: id, product: 'sticker-4x4', verdict: 'pass' })];
-      const again = [tool('design_review', { design: id, product: 'tee-front', verdict: 'pass', notes: 'The outline separates it from the fabric now.' })];
-      const firstLook = pass === 0 && !redo;
-      return (firstLook ? first : again)[step]
-        || end('Checked design ' + id + (redo ? ' [Art redo: continuing]' : '') + '. Design id: ' + id + '\n' + (firstLook ? 'tee-front: redo\nsticker-4x4: pass\nVERDICT: revise' : 'tee-front: pass\nVERDICT: approved'));
-    }
-    return [tool('design_get', { design: id }), tool('mockup_render', { design: id, product: 'tee-front', fabric: 'black' }), ...(redo ? [] : [tool('mockup_render', { design: id, product: 'sticker-4x4' })])][step]
-      || end('Mockups rendered for design ' + id + '. It is waiting for the owner in the Gallery. Nothing was published.');
-  }
-  return new Promise((resolve) => {
-    const server = http.createServer((req, res) => {
-      if (req.url.indexOf('/models') >= 0) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ data: [{ id: 'test/model', context_length: 200000, pricing: { prompt: String(price), completion: '0' }, supported_parameters: ['tools'], architecture: { input_modalities: ['text', 'image'] } }] }));
-      }
-      if (req.url.indexOf('/chat/completions') < 0) { res.writeHead(404); return res.end(); }
-      let raw = '';
-      req.on('data', d => { raw += d; });
-      req.on('end', () => {
-        let body = null; try { body = JSON.parse(raw); } catch (_) { body = null; }
-        S.requests.push(body);
-        const usage = { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 };
-        const isVision = ((body && body.messages) || []).some(m => Array.isArray(m && m.content) && m.content.some(p => p && p.type === 'image_url'));
-        if (isVision || !(body && body.stream)) {
-          if (isVision) S.vision++;
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'A magenta rectangle with a small near-black square, on a plain background.' }, finish_reason: 'stop' }], usage }));
-        }
-        const turn = decide(body);
-        if (process.env.ART_E2E_DEBUG) { const l = mock_last(S); console.log('[mock] -> ' + JSON.stringify(l) + ' ' + (turn.tool ? turn.tool.name : 'TEXT ' + String(turn.text).slice(0, 60))); }
-        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
-        if (turn.tool) {
-          res.write('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_' + S.requests.length, type: 'function', function: { name: turn.tool.name, arguments: JSON.stringify(turn.tool.args) } }] } }] }) + '\n\n');
-          res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }], usage }) + '\n\n');
-        } else {
-          res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: turn.text } }] }) + '\n\n');
-          res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage }) + '\n\n');
-        }
-        res.write('data: [DONE]\n\n');
-        res.end();
-      });
-    });
-    server.listen(0, HOST, () => resolve({ server, S, base: 'http://' + HOST + ':' + server.address().port + '/api/v1' }));
-  });
-}
+const { startArtMock: startMock } = require('./helpers/art-mock.js');   // the scripted provider: plays each step with real tool calls
 
-const mock_last = S => S.seen[S.seen.length - 1];
 function boot(port, env, attemptsLeft) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [INDEX], { env: Object.assign({}, process.env, env, { SKYNET_PORT: String(port), STARNET_PORT: String(port) }), stdio: ['ignore', 'pipe', 'pipe'] });
@@ -242,11 +143,24 @@ async function sizeOf(file) { const img = await C.loadImage(fs.readFileSync(file
     const perms = (await api('/api/permissions')).j || {};
     A.ok(!perms.bypass && !(perms.fullBypass), 'Full Access stays OFF: ' + JSON.stringify({ bypass: perms.bypass, fullBypass: perms.fullBypass }));
 
+    /* ---- 2c. the design that stopped can now be carried on with — no re-drop, no second record ---- */
+    mock.S.toolErrors.length = 0;
+    A.eq((await api('/api/art/designs/resume', 'POST', { design: 'dsn_nope00' })).status, 404, 'resume of an unknown design is a 404');
+    const rs = await api('/api/art/designs/resume', 'POST', { design: d0.id });
+    A.ok(rs.status === 200 && rs.j.ok === true, 'the owner asks the line to carry on with the stopped design: ' + JSON.stringify(rs.j && [rs.j.ok, rs.j.error]));
+    const d0b = await waitFor(async () => { const d = (await designs()).find(x => x.id === d0.id); return d && d.status === 'ready' ? d : null; }, 120000, 'the resumed design to reach READY');
+    A.ok(d0b && d0b.variants.length === 2 && d0b.mockups.length === 2 && d0b.plan.createdAt === d0.plan.createdAt, 'it finished from where it stopped: both print files and mockups, the same plan');
+    A.eq(mock.S.toolErrors, [], 'with the grant, nothing was refused this time');
+    A.eq((await designs()).length, 1, 'still one record for that image');
+    A.eq((await api('/api/art/designs/resume', 'POST', { design: d0.id })).j.code, 'NOT_RESUMABLE', 'a finished design is not resumable');
+    await waitFor(async () => { const t = (await triggers()).find(x => x.id === tid); return t && !t.running && !t.queued ? t : null; }, 30000, 'the line to be idle');
+    const firesSoFar = (await triggers()).find(x => x.id === tid).fires;
+
     /* ---- 3. THE LINE ---- */
     mock.S.toolErrors.length = 0; mock.S.seen.length = 0;
     const bytes1 = designPng(1), dropped1 = path.join(drop, 'Neon Block.png');
     fs.writeFileSync(dropped1, bytes1);
-    const t1 = await waitFor(async () => { const t = (await triggers()).find(x => x.id === tid); return t && t.fires === 2 && t.lastOutcome && !t.running ? t : null; }, 120000, 'the design to ride the whole line');
+    const t1 = await waitFor(async () => { const t = (await triggers()).find(x => x.id === tid); return t && t.fires === firesSoFar + 1 && t.lastOutcome && !t.running ? t : null; }, 120000, 'the design to ride the whole line');
     A.ok(t1 && t1.lastOutcome.ok === true, 'the fire finished cleanly: ' + JSON.stringify(t1 && t1.lastOutcome) + ' err=' + (t1 && t1.lastError));
     A.eq(t1 && t1.lastOutcome.runs, 6, 'six real runs: STRATEGIST, DESIGNER, INSPECTOR, (sent back) DESIGNER, INSPECTOR, MOCKUP');
     A.eq(mock.S.toolErrors, [], 'no tool call was refused');

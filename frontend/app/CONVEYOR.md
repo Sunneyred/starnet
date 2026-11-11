@@ -145,7 +145,7 @@ what stands there — one undo, routing exactly as the drawn line.
   every floor change) and says CHECKING WHERE IT FITS… then FITS LAID OUT — CLICK THE FLOOR WHERE YOU WANT IT, or NO ROOM with
   the size the engine needs; MAKE ROOM FOR IT builds the smaller of the drawn and the laid-out size. The red ghost of a line
   that fits laid out invites CLICK TO LAY IT OUT HERE.
-- Every one of the 20 ready-made lines lands in a fresh starter room this way (the drawn tile maps: 12). Locked by
+- Every one of the 21 ready-made lines lands in a fresh starter room this way (the drawn tile maps: 13). Locked by
   test/line-place.test.js (each one routes exactly as the stamped original with the card's settings, one undo).
 
 ## Runtime (conveyor.js) — `Conveyor.create()`

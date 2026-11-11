@@ -12466,6 +12466,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/art/designs/approve', h: (req, res) => artRoutes.approve(req, res) },
   { m: 'POST', exact: '/api/art/designs/rights', h: (req, res) => artRoutes.rights(req, res) },
   { m: 'POST', exact: '/api/art/designs/export', h: (req, res) => artRoutes.exportDesign(req, res) },
+  { m: 'POST', exact: '/api/art/designs/resume', h: (req, res) => artRoutes.resume(req, res) },
   { m: 'POST', exact: '/api/art/setup', h: (req, res) => artRoutes.setup(req, res) },
   { m: 'GET', exact: '/api/budget/status', h: handleBudgetStatus },
   { m: 'GET', exact: '/api/usage/providers', h: handleUsageProviders },
@@ -13851,6 +13852,16 @@ const artRoutes = require('./art/gallery-routes.js').makeArtRoutes({
   // setup: the same folder-watch policy a trigger meets, and the same trust path the Projects list uses (the owner's click)
   checkDropFolder: (p) => triggerFolderPolicy.check(p),
   blessProject: (p) => projectBless.blessPath({ path: p, surface: 'interactive' }),
+  // carry on with a design that stopped part-way: the same ART DROP trigger, the same budget, the record decides what is left
+  resume: async (rec) => {
+    const tid = rec.source.triggerId;
+    if (!tid || !triggerRunner.get(tid)) return { ok: false, error: 'the art drop that took this design no longer exists, so the line was not started' };
+    const text = ['[Art resume: the owner asked the line to carry on with this design]', '', 'Design id: ' + rec.id, 'Design file: ' + rec.source.storedRel,
+      ...(rec.source.previewRel ? ['Preview to LOOK at: ' + rec.source.previewRel] : []), '',
+      'This design stopped before it was finished. Read its record first (design_get) and do only what is still missing.'].join('\n');
+    const r = triggerRunner.enqueue(tid, { text, preview: 'RESUME ' + rec.source.originalName, source: rec.source.storedRel });
+    return r && r.ok ? { ok: true } : { ok: false, error: (r && r.error) || 'the line refused the item' };
+  },
   rerun: async (rec, productId, note) => {
     const tid = rec.source.triggerId;
     if (!tid || !triggerRunner.get(tid)) return { ok: false, error: 'the redo is recorded, but the art drop that took this design no longer exists, so the line was not restarted' };
