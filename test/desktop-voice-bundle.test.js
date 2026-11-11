@@ -97,8 +97,14 @@ assert.equal(isUnusedDesktopAccelerator(ort + 'libonnxruntime_providers_cuda.so'
 console.log('desktop voice bundle tests passed');
 
 const { isDevelopmentOnlyPackage } = require('../scripts/lib/staged-native-packages.mjs');
-for (const name of ['canvas','canvas-linux-x64-musl','canvas-linux-x64-gnu','canvas-win32-x64-msvc']) {
-  assert.equal(isDevelopmentOnlyPackage('node_modules/@napi-rs/'+name, lock.packages), true, 'development-only canvas stays out of every desktop bundle: '+name);
+// ART STUDIO Phase 1a: @napi-rs/canvas is now a RUNTIME dependency — the art engine (sidecar/art/) draws print
+// files and mockups with it inside the installed app — so it must SURVIVE staging. (Upstream kept it dev-only, for
+// tests.) Each platform's native package is an optional dependency npm installs only on that platform.
+assert.equal(pkg.dependencies['@napi-rs/canvas'], '0.1.100', 'the art engine\'s image library is a pinned production dependency');
+assert.ok(!(pkg.devDependencies || {})['@napi-rs/canvas'], 'and is not also listed as a dev dependency');
+for (const name of ['canvas','canvas-linux-x64-musl','canvas-linux-x64-gnu','canvas-win32-x64-msvc','canvas-darwin-arm64','canvas-darwin-x64']) {
+  assert.ok(lock.packages['node_modules/@napi-rs/'+name], 'the lockfile carries @napi-rs/'+name);
+  assert.equal(isDevelopmentOnlyPackage('node_modules/@napi-rs/'+name, lock.packages), false, 'the art engine\'s canvas ships in the desktop bundle: '+name);
 }
 const fixtures={'node_modules/dev':{dev:true},'node_modules/shared':{},'node_modules/optional':{devOptional:true},'node_modules/prod/node_modules/dev':{dev:true}};
 assert.equal(isDevelopmentOnlyPackage('node_modules\\dev',fixtures),true);

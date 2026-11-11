@@ -73,6 +73,10 @@ test/workspace-lease.test.js
 test/workspace-owner.test.js
 test/workspace-safety.test.js
 test/brand-identity.test.js
+test/art-canvas-probe.test.js
+test/art-ops.test.js
+test/art-products.test.js
+test/art-tools.test.js
 test/workspace-recovery.test.js
 test/workspace-recovery-fresh-start.test.js
 test/workspace-lineage.test.js

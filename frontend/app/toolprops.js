@@ -35,6 +35,10 @@ const ToolProps = (() => {
     'connectors.list': 'dish',
     'keys.save': 'dish',   // storing a pasted API key for web_request rides web_request's dish grant
     voice_generate: 'studio',   // the studio makes audio as well as images — same prop, same pulse
+    // the art line (Art Studio Phase 1): catalog, measurements and print files are studio work — same prop, same pulse
+    product_catalog: 'studio',
+    art_inspect: 'studio',
+    art_prepare: 'studio',
     recall_conversation: 'notebook',
     'widget.get': 'notebook',
     'widget.set': 'notebook'   // Widget definitions/readings share the notebook-object (memory) grant.

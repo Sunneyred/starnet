@@ -365,7 +365,14 @@
       // imports, timelines, markers, renders — so it is execute + consent. All local: no network.
       { capId: 'studio', tool: 'resolve_timeline_file', scope: 'write', requiresConsent: true, network: false },
       { capId: 'studio', tool: 'resolve_status', scope: 'read', requiresConsent: false, network: false },
-      { capId: 'studio', tool: 'resolve_control', scope: 'execute', requiresConsent: true, network: false }
+      { capId: 'studio', tool: 'resolve_control', scope: 'execute', requiresConsent: true, network: false },
+      // THE ART LINE (Art Studio Phase 1, tools/builtin/art.js): what a design can be made into, measurements of a
+      // design, and the exact print file for one product. All local and deterministic (sidecar/art/) — no network.
+      // The two reads are consent-free; art_prepare WRITES a new png into the workspace, so it is consent-gated like
+      // every other studio write. It never modifies the original design.
+      { capId: 'studio', tool: 'product_catalog', scope: 'read', requiresConsent: false, network: false },
+      { capId: 'studio', tool: 'art_inspect', scope: 'read', requiresConsent: false, network: false },
+      { capId: 'studio', tool: 'art_prepare', scope: 'write', requiresConsent: true, network: false }
     ],
     // JUKEBOX (Spotify): querying playback/library is consent-free (read); CONTROLLING playback is an outward
     // action on the user's account/device, so it is execute + consent-gated. The OAuth session (PKCE, no secret)
