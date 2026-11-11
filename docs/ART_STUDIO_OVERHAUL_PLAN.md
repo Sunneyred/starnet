@@ -143,7 +143,7 @@ Each phase is shippable on its own. Do them in order. **Phase 0 is mandatory fir
 
 ### Phase 0 — Fork hygiene (do not skip)
 
-**STATUS:** source work done on branch `art-studio/phase-0-fork-hygiene` (commit: see the PR), 2026-11-11.
+**STATUS:** source work done on branch `art-studio/phase-0-fork-hygiene` (commit `0560d37c`), 2026-11-11.
 **Not yet proven on a real install** — see "Still owed" below. Do not tick the side-by-side acceptance box until
 the owner has built and installed it on their machine.
 
