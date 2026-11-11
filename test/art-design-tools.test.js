@@ -35,8 +35,8 @@ const PLAN = designId => ({ design: designId,
   const T = makeArtTools({ fsp, pathMod: path, root: ROOT, designStore: store });
 
   /* ---- wiring ---- */
-  A.eq(T.tools.map(t => t.name), ['product_catalog', 'art_inspect', 'art_prepare', 'design_get', 'product_plan_submit', 'design_review'], 'with a design store, six tools are offered');
-  A.eq(makeArtTools({ fsp, pathMod: path, root: ROOT }).tools.length, 3, 'without one, only the three that need no record');
+  A.eq(T.tools.map(t => t.name), ['product_catalog', 'art_inspect', 'art_prepare', 'mockup_render', 'design_get', 'product_plan_submit', 'design_review'], 'with a design store, seven tools are offered');
+  A.eq(makeArtTools({ fsp, pathMod: path, root: ROOT }).tools.length, 4, 'without one, only the four that need no record');
   for (const t of [T.designGetTool, T.planTool, T.reviewTool]) {
     const g = CAP_REGISTRY.studio.find(x => x.tool === t.name);
     A.ok(g, t.name + ' is granted by the STUDIO object');

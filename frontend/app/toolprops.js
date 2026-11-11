@@ -39,6 +39,7 @@ const ToolProps = (() => {
     product_catalog: 'studio',
     art_inspect: 'studio',
     art_prepare: 'studio',
+    mockup_render: 'studio',
     design_get: 'studio',
     product_plan_submit: 'studio',
     design_review: 'studio',

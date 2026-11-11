@@ -36,6 +36,7 @@ const fsMod = require('./fs.js');
 const ArtOps = require('../../art/art-ops.js');
 const Products = require('../../art/products.js');
 const PlanSchema = require('../../art/plan-schema.js');
+const Mockup = require('../../art/mockup.js');
 const { DesignError } = require('../../art/design-store.js');
 
 const MAX_SOURCE_BYTES = 80 * 1024 * 1024;   // a print-size PNG is tens of MB; refuse anything absurd before reading it
@@ -53,6 +54,8 @@ function makeArtTools(deps) {
   // lazy: the native canvas module loads on the first art call, never at sidecar boot
   let _ops = deps.artOps || null;
   const ops = () => _ops || (_ops = ArtOps.defaultArtOps());
+  // mockup templates: the drawn built-ins plus the owner's own packs, re-read per call like the catalog
+  const mockups = () => (typeof deps.mockups === 'function' ? deps.mockups() : Mockup.defaultMockups());
   // the catalog is re-read per call so an owner's edit to the override file applies without a restart
   const catalog = () => (typeof deps.loadCatalog === 'function' ? deps.loadCatalog() : Products.loadCatalog());
 
@@ -409,10 +412,87 @@ function makeArtTools(deps) {
     }
   };
 
-  // the three record tools exist only where a design store is wired; the first three always do
-  const tools = store ? [catalogTool, inspectTool, prepareTool, designGetTool, planTool, reviewTool] : [catalogTool, inspectTool, prepareTool];
+  // ---------------- mockup_render ----------------
+  const mockupTool = {
+    name: 'mockup_render', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: TOOL_TIMEOUT_MS,
+    description: 'Render a product MOCKUP from a print file: the print file is placed onto a picture of the product and saved as a new ' +
+      'PNG. With "design" + "product" (+ "fabric" when the product was made on more than one) it uses that design\'s recorded print ' +
+      'file, records the mockup on the design, and marks the design READY once every print file has a mockup. Without a design, give ' +
+      '"path" (a print file) and "product". Optional "template": a template id (the default is the product\'s own; an unknown id lists ' +
+      'the real ones). The built-in templates are simple DRAWN products, not photographs, and are labelled as such; a mockup is a ' +
+      'picture for a listing, not a colour-accurate print proof.',
+    schema: { type: 'object', required: ['product'], properties: {
+      design: { type: 'string', description: 'the design id (dsn_…)' }, product: { type: 'string' }, fabric: { type: 'string' },
+      path: { type: 'string', description: 'a print file, when no design is given' }, template: { type: 'string' }, out: { type: 'string' } } },
+    run: async (args, ctx) => {
+      args = args || {};
+      const aid = (ctx && ctx.agentId) || 'agent';
+      const cat = catalog();
+      const productId = str(args.product);
+      const product = cat.get(productId);
+      if (!product) throw new Error(cat.resolve(productId, null, null).error);
+      const design = designOf(args.design, false);
+      let printRel, fabricId = str(args.fabric) || null;
+      if (design) {
+        const made = design.variants.filter(v => v.productId === productId);
+        if (!made.length) throw new Error('design ' + design.id + ' has no print file for ' + productId + ' yet — a mockup needs one (art_prepare first). Print files so far: ' + (design.variants.map(v => v.productId).join(', ') || 'none'));
+        const v = fabricId ? made.find(x => x.fabricId === fabricId) : (made.length === 1 ? made[0] : null);
+        if (!v) throw new Error(fabricId ? 'design ' + design.id + ' has no ' + productId + ' print file on fabric "' + fabricId + '". Made on: ' + made.map(x => x.fabricId).join(', ')
+          : productId + ' was made on more than one fabric (' + made.map(x => x.fabricId).join(', ') + ') — say which with "fabric"');
+        if (v.review && v.review.verdict === 'redo') throw new Error(productId + ' is waiting on a redo (the Reviewer sent it back) — it must be remade before it is mocked up');
+        printRel = v.path; fabricId = v.fabricId;
+      } else printRel = str(args.path);
+      if (!printRel) throw new Error('give "design" (to use its recorded print file) or "path" (a print file)');
+      const fabric = fabricId ? product.fabrics.find(f => f.id === fabricId) : null;
+      if (fabricId && !fabric) throw new Error('product ' + productId + ' is not offered in fabric "' + fabricId + '". Its fabrics: ' + (product.fabrics.map(f => f.id).join(', ') || 'none'));
+
+      const M = mockups();
+      const tpl = str(args.template) ? M.get(str(args.template)) : M.forProduct(productId);
+      if (!tpl) throw new Error(str(args.template) ? 'no mockup template "' + str(args.template) + '". Templates for ' + productId + ': ' + (M.list(productId).map(t => t.id).join(', ') || 'none')
+        : 'there is no mockup template for ' + productId + ' yet — no mockup was made');
+      if (!tpl.productIds.includes(productId)) throw new Error('template ' + tpl.id + ' shows ' + tpl.productIds.join(', ') + ', not ' + productId + '. Templates for ' + productId + ': ' + (M.list(productId).map(t => t.id).join(', ') || 'none'));
+
+      const src = await readSource(aid, printRel, ctx);
+      const rel0 = str(args.out) || ((design ? 'designs/' + design.id + '/mockups/' : 'art/mockups/' + slug(P.basename(P.dirname(src.rel))) + '-') + productId + (fabricId ? '-' + fabricId : '') + '--' + tpl.id + '.png');
+      const rel = /\.png$/i.test(rel0) ? rel0 : rel0.replace(/\.[a-z0-9]+$/i, '') + '.png';
+      const placed = await jail.resolveInside(aid, rel, { scope: 'write', ctx });
+      if (P.resolve(placed.abs) === P.resolve(src.abs)) throw new Error('the mockup would overwrite the print file — choose a different "out" name');
+      let m;
+      try { m = await M.render(src.buffer, tpl.id, { fabricHex: fabric ? fabric.hex : undefined }); }
+      catch (e) { throw new Error('mockup_render could not render ' + productId + ' on ' + tpl.id + ': ' + artMessage(e) + '. No file was written.'); }
+      await fsp.mkdir(P.dirname(placed.abs), { recursive: true });
+      const staging = placed.abs + '.pending-' + process.pid;
+      try { await fsp.writeFile(staging, m.buffer); await fsp.rename(staging, placed.abs); }
+      catch (e) { await fsp.unlink(staging).catch(require('../../failopen.js').swallow('art.mockup.staging-cleanup')); throw e; }
+      emitDeliverable(ctx, aid, rel);
+
+      let recorded = '', ready = '';
+      if (design) {
+        try {
+          await store.addMockup(design.id, { productId, fabricId, templateId: tpl.id, path: rel, width: m.width, height: m.height });
+          await noteRun(design, ctx);
+          recorded = '\nRecorded on design ' + design.id + '.';
+          // READY is a fact about the record, checked by the record: every print file mocked up, none waiting on a redo
+          try { const done = await store.markReady(design.id); ready = '\nDesign ' + design.id + ' is now ' + done.status.toUpperCase() + ': every print file has a mockup. It is waiting for the owner in the Gallery.'; }
+          catch (e) { if (!(e instanceof DesignError && e.code === 'DESIGN_NOT_READY')) throw e; ready = '\nNot ready yet — ' + e.message + '.'; }
+        } catch (e) { recorded = '\nNOT RECORDED on design ' + design.id + ': ' + storeMessage(e) + ' (the file was still written).'; }
+      }
+      const where = await jail.outputPlacement(aid, placed);
+      return {
+        content: 'Mockup saved: ' + rel + ' — ' + m.width + 'x' + m.height + ' px, ' + product.label + (fabric ? ' in ' + fabric.label : '') + ' on template ' + tpl.id +
+          (m.kind === 'drawn' ? ' (a simple DRAWN product, not a photograph)' : ' (the owner\'s own template; stated license: ' + m.license + ')') + '.' +
+          '\nA mockup is a picture for a listing, not a colour-accurate print proof.' + recorded + ready +
+          '\n' + where.line + (where.viewer ? '\nView: ' + where.viewer : ''),
+        summary: 'mockup → ' + rel,
+        data: { output: rel, product: productId, fabric: fabricId, templateId: tpl.id, kind: m.kind, width: m.width, height: m.height }
+      };
+    }
+  };
+
+  // the three record tools exist only where a design store is wired; the others always do
+  const tools = store ? [catalogTool, inspectTool, prepareTool, mockupTool, designGetTool, planTool, reviewTool] : [catalogTool, inspectTool, prepareTool, mockupTool];
   return {
-    tools, catalogTool, inspectTool, prepareTool, designGetTool, planTool, reviewTool,
+    tools, catalogTool, inspectTool, prepareTool, mockupTool, designGetTool, planTool, reviewTool,
     register(reg) { for (const t of tools) reg.register(t); return reg; },
     _internals: { readSource, slug, MAX_SOURCE_BYTES }
   };

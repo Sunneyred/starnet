@@ -373,6 +373,8 @@
       { capId: 'studio', tool: 'product_catalog', scope: 'read', requiresConsent: false, network: false },
       { capId: 'studio', tool: 'art_inspect', scope: 'read', requiresConsent: false, network: false },
       { capId: 'studio', tool: 'art_prepare', scope: 'write', requiresConsent: true, network: false },
+      // mockup_render (Phase 4) writes a new mockup png into the workspace: consent-gated like art_prepare, and local.
+      { capId: 'studio', tool: 'mockup_render', scope: 'write', requiresConsent: true, network: false },
       // DESIGN RECORDS (Art Studio Phase 2-3): reading a dropped design's record, recording the Strategist's product
       // plan, recording the Reviewer's verdict. The two writes touch ONLY the design record (art-designs.json) —
       // never a file the owner made, never the network — so, like deliverable_note, they are not consent-gated.

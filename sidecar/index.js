@@ -21937,6 +21937,7 @@ async function runOnceCore(o) {
   // exact print file for one product. Local and deterministic (sidecar/art/); the owner's product overrides live in
   // <workspaces>/art-products.json and are re-read per call.
   makeArtTools({ fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust, designStore: artDesignStore,
+    mockups: () => require('./art/mockup.js').defaultMockups({ fs, path, packsDir: path.join(WORKSPACES, 'art-templates') }),
     loadCatalog: () => require('./art/products.js').loadCatalog({ fs, overridePath: path.join(WORKSPACES, 'art-products.json') }) }).register(registry);
   makeVoiceTools({ synth: media.synthesizeForAgent, fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust }).register(registry);   // pathTrust: project-scoped relative paths land in the project (issue #77)
   // STUDIO, the edit bay: DaVinci Resolve. Timeline FILES work with free Resolve; live control needs Resolve Studio and
