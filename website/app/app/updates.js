@@ -9,8 +9,17 @@ const Updates = (() => {
   // failure, an unsupported install layout). Reinstalling the latest build over the top keeps
   // ALL user data (workspaces live in Application Support; localStorage/IndexedDB in the WebView
   // store keyed by the unchanged bundle id — both OUTSIDE the app bundle the installer replaces).
-  // Kept in sync with tauri.conf.json plugins.updater.endpoints[0] (same repo, /releases/latest).
-  const RELEASES_PAGE = 'https://github.com/androoAGI/starnet-releases/releases/latest';
+  // FORK IDENTITY (Art Studio Phase 0, frontend/app/brand.js): this fork has no release feed of its own, so
+  // in-app updates are OFF — tauri.conf.json carries no updater endpoint and nothing here ever reaches the
+  // network. The Update Center says so in plain words (phase 'off'); it never checks upstream StarNet's feed,
+  // which would replace this app with a different program. RELEASES_PAGE stays '' until the fork publishes.
+  const BRAND = (typeof Brand !== 'undefined') ? Brand : null;
+  const APP_NAME = (BRAND && BRAND.PRODUCT_NAME) || 'the app';
+  // OFF when brand.js says so. brand.js is the first app script and a BootGuard critical global, so the page always
+  // has it; a harness that loads this file alone (the update-machinery tests) exercises the retained check/install path.
+  const UPDATES_OFF = !!(BRAND && BRAND.UPDATES && BRAND.UPDATES.enabled === false);
+  const OFF_NOTE = (BRAND && BRAND.UPDATES && BRAND.UPDATES.offNote) || 'In-app updates are off in this build.';
+  const RELEASES_PAGE = (!UPDATES_OFF && BRAND && BRAND.UPDATES && BRAND.UPDATES.releasesPage) || '';
   const CORE = (typeof UpdateCore !== 'undefined') ? UpdateCore : null;
   const TAURI = (typeof window !== 'undefined' && window.__TAURI__ && window.__TAURI__.core) ? window.__TAURI__.core : null;
   const invoke = (cmd, args) => TAURI.invoke(cmd, args || {});
@@ -32,7 +41,7 @@ const Updates = (() => {
   let sessionCheckAt = 0;
   let state = {
     desktop: !!TAURI,
-    phase: TAURI ? 'idle' : 'unsupported',
+    phase: UPDATES_OFF ? 'off' : TAURI ? 'idle' : 'unsupported',
     currentVersion: '',
     target: '',
     update: null,
@@ -60,9 +69,9 @@ const Updates = (() => {
   // minisign / reqwest / plugin Display text; keep it as the trailing detail for support, never as the whole message.
   function installFailureText(e) {
     const raw = cleanError(e);
-    const kept = ' Nothing was installed; your current StarNet is unchanged.';
+    const kept = ' Nothing was installed; your current ' + APP_NAME + ' is unchanged.';
     if (/signature|different key|minisign|base64|invalid symbol/i.test(raw)) {
-      return 'Update refused: the download did not match the signed StarNet release.' + kept + ' (' + raw + ')';
+      return 'Update refused: the download did not match the signed ' + APP_NAME + ' release.' + kept + ' (' + raw + ')';
     }
     if (/download|request|response body|connect|timed? ?out|network|status: \d{3}/i.test(raw)) {
       return 'The update download did not finish.' + kept + ' Check the connection, then press INSTALL UPDATE again. (' + raw + ')';
@@ -122,22 +131,26 @@ const Updates = (() => {
     notify = typeof opts.notify === 'function' ? opts.notify : notify;
     rerender = typeof opts.rerender === 'function' ? opts.rerender : rerender;
     await refreshStatus();
+    if (UPDATES_OFF) return;   // no check loop, ever: there is no feed to ask
     runLoop('startup');
   }
 
   async function refreshStatus() {
     if (!TAURI || !CORE) {
       state.desktop = false;
-      state.phase = 'unsupported';
+      state.phase = UPDATES_OFF ? 'off' : 'unsupported';
       emit();
       return snapshot();
     }
     try {
-      const r = await invoke('starnet_update_status');
+      const r = await invoke('starnet_update_status');   // local only: reads the running build's version, no network
       state.desktop = !!r.desktop;
       state.currentVersion = r.currentVersion || '';
       state.target = r.target || '';
-      if (r.pending && isSkipped(r.pending)) {
+      if (UPDATES_OFF) {
+        state.update = null;
+        state.phase = 'off';
+      } else if (r.pending && isSkipped(r.pending)) {
         state.update = null;
         state.phase = 'skipped';
       } else if (r.pending) {
@@ -148,8 +161,8 @@ const Updates = (() => {
       }
       state.error = '';
     } catch (e) {
-      state.phase = 'unsupported';
-      state.error = cleanError(e);
+      state.phase = UPDATES_OFF ? 'off' : 'unsupported';
+      state.error = UPDATES_OFF ? '' : cleanError(e);
     }
     emit();
     return snapshot();
@@ -157,7 +170,7 @@ const Updates = (() => {
 
   function schedule() {
     clearTimeout(timer);
-    if (!CORE) return;
+    if (!CORE || UPDATES_OFF) return;
     const now = Date.now();
     const action = CORE.nextAction({
       settings: prefs,
@@ -173,7 +186,7 @@ const Updates = (() => {
   }
 
   function runLoop(reason) {
-    if (!CORE) return;
+    if (!CORE || UPDATES_OFF) return;
     const action = CORE.nextAction({
       settings: prefs,
       runtime: { desktop: state.desktop, phase: state.phase, hasUpdate: !!state.update, currentVersion: state.currentVersion },
@@ -187,6 +200,11 @@ const Updates = (() => {
   }
 
   async function check(manual, reason) {
+    if (UPDATES_OFF) {   // never invoke the native check: say what is true and leave the phase 'off'
+      state.phase = 'off';
+      if (manual) notify(OFF_NOTE, 'warn');
+      return snapshot();
+    }
     if (!TAURI || !CORE || busy) return snapshot();
     busy = true;
     sessionCheckAt = Date.now();
@@ -206,13 +224,13 @@ const Updates = (() => {
         state.update = r.update;
         state.phase = 'available';
         if (CORE.shouldNotify(prefs, r.update.version, Date.now(), !!r.update.critical)) {
-          notify((r.update.critical ? 'Critical update' : 'StarNet update') + ' v' + r.update.version + ' is ready in Update Center', r.update.critical ? 'warn' : 'gold', undefined, { kind: r.update.critical ? 'alert' : 'result', key: 'update-ready', go: { term: 'updates' } });
+          notify((r.update.critical ? 'Critical update' : APP_NAME + ' update') + ' v' + r.update.version + ' is ready in Update Center', r.update.critical ? 'warn' : 'gold', undefined, { kind: r.update.critical ? 'alert' : 'result', key: 'update-ready', go: { term: 'updates' } });
           prefs = CORE.recordNotified(prefs, r.update.version);
         }
       } else {
         state.update = null;
         state.phase = 'current';
-        if (manual) notify('StarNet is up to date', 'good');
+        if (manual) notify(APP_NAME + ' is up to date', 'good');
       }
       savePrefs();
     } catch (e) {
@@ -370,8 +388,8 @@ const Updates = (() => {
 
   async function install(opts) {
     opts = opts || {};
-    if (!TAURI || !CORE || busy || !state.update) {
-      notify('No StarNet update is ready to install', 'warn');
+    if (UPDATES_OFF || !TAURI || !CORE || busy || !state.update) {
+      notify(UPDATES_OFF ? OFF_NOTE : 'No ' + APP_NAME + ' update is ready to install', 'warn');
       return snapshot();
     }
     const Channel = TAURI.Channel;
@@ -410,7 +428,7 @@ const Updates = (() => {
       state.error = conflict ? conflictRefusal(conflict)
         : drained.saveConfirmed === false
         ? unconfirmedSaveRefusal(cause)
-        : 'State could not be verified on disk. The update was not installed; your current StarNet remains open.';
+        : 'State could not be verified on disk. The update was not installed; your current ' + APP_NAME + ' remains open.';
       busy = false;
       if (conflict) raiseConflictNotice();
       const causeWords = cause && typeof CloudSaveCore !== 'undefined' && CloudSaveCore && CloudSaveCore.describeCause ? ' (' + CloudSaveCore.describeCause(cause) + ')' : '';
@@ -445,7 +463,7 @@ const Updates = (() => {
     try {
       await invoke('starnet_update_install', { onEvent });
       state.phase = 'restarting';
-      notify('StarNet update installed - restarting', 'good');
+      notify(APP_NAME + ' update installed - restarting', 'good');
     } catch (e) {
       installing = false;   // install failed; the app lives on, so the quit guard resumes normally
       let thawError = null;
@@ -480,6 +498,7 @@ const Updates = (() => {
   }
 
   function setAutoCheck(on) {
+    if (UPDATES_OFF) return;
     prefs = CORE.setAutoCheck(prefs, !!on, Date.now());
     savePrefs();
     schedule();
@@ -502,12 +521,13 @@ const Updates = (() => {
     savePrefs();
     state.update = null;
     state.phase = 'skipped';
-    notify('StarNet v' + prefs.ignoredVersion + ' will be skipped', 'warn');
+    notify(APP_NAME + ' v' + prefs.ignoredVersion + ' will be skipped', 'warn');
     schedule();
     emit();
   }
 
   function phaseLabel() {
+    if (state.phase === 'off') return 'updates are off in this build';
     if (state.phase === 'unsupported') return 'desktop updater unavailable';
     if (state.phase === 'checking') return 'checking for updates';
     if (state.phase === 'preparing') return 'verifying state and creating recovery point';
@@ -524,6 +544,11 @@ const Updates = (() => {
 
   function settingsHtml() {
     const auto = prefs.autoCheck !== false;
+    if (UPDATES_OFF) {
+      return '<h4 class="ms-h">UPDATES</h4>' +
+        '<div class="up-mini"><div><b>' + esc(phaseLabel().toUpperCase()) + '</b><span>current v' + esc(state.currentVersion || 'unknown') + '</span></div></div>' +
+        '<div class="dim hint">' + esc(OFF_NOTE) + '</div>';
+    }
     return '<h4 class="ms-h">UPDATES</h4>' +
       '<div class="up-mini">' +
       '<div><b>' + esc(phaseLabel().toUpperCase()) + '</b><span>current v' + esc(state.currentVersion || 'unknown') + ' - last check ' + esc(fmtTime(state.lastCheckedAt)) + '</span></div>' +
@@ -549,15 +574,19 @@ const Updates = (() => {
     // The window is the "check it now" place: opening it checks unless this launch already checked recently.
     // Deferred out of this render's stack; check() stamps sessionCheckAt and busy first, so its rerenders never re-enter. AUTO-CHECK off means
     // no request the Commander didn't click (PRIVACY.md §6) — CHECK NOW stays the manual path.
-    if (TAURI && CORE && !busy && !installing && prefs.autoCheck !== false && (state.phase === 'idle' || state.phase === 'current' || state.phase === 'skipped' || state.phase === 'error') &&
+    if (!UPDATES_OFF && TAURI && CORE && !busy && !installing && prefs.autoCheck !== false && (state.phase === 'idle' || state.phase === 'current' || state.phase === 'skipped' || state.phase === 'error') &&
         CORE.shouldCheckOnOpen(sessionCheckAt, Date.now())) {
       Promise.resolve().then(() => check(false, 'open'));
     }
   }
 
   function html() {
+    if (UPDATES_OFF) {
+      return '<div class="fb-empty" id="up-off">UPDATES ARE OFF IN THIS BUILD.<br><span>' + esc(OFF_NOTE) +
+        (state.currentVersion ? ' You are running v' + esc(state.currentVersion) + '.' : '') + '</span></div>';
+    }
     if (!TAURI) {
-      return '<div class="fb-empty">DESKTOP UPDATES ARE AVAILABLE IN THE PACKAGED STARNET APP.<br><span>This browser preview cannot install native releases.</span></div>';
+      return '<div class="fb-empty">DESKTOP UPDATES ARE AVAILABLE IN THE PACKAGED APP.<br><span>This browser preview cannot install native releases.</span></div>';
     }
     const update = state.update;
     const pct = CORE.progress(state.downloaded, state.contentLength);
@@ -578,7 +607,7 @@ const Updates = (() => {
         // Channels-confirmed, and the choice is the Commander's, not a side effect.
         out += '<div class="up-guard">' +
           esc(guardN === 1 ? '1 AGENT IS STILL WORKING' : guardN + ' AGENTS ARE STILL WORKING') +
-          ' - INSTALLING RESTARTS STARNET AND KILLS ' + (guardN === 1 ? 'ITS RUN' : 'THEIR RUNS') + '.</div>' +
+          ' - INSTALLING RESTARTS ' + esc(APP_NAME.toUpperCase()) + ' AND KILLS ' + (guardN === 1 ? 'ITS RUN' : 'THEIR RUNS') + '.</div>' +
           '<div class="up-actions">' +
           '<button class="bb sm" id="up-guard-wait">WAIT FOR AGENTS</button>' +
           '<button class="bb sm danger" id="up-install-force" ' + (busy ? 'disabled' : '') + '>INSTALL ANYWAY</button>' +
@@ -589,12 +618,12 @@ const Updates = (() => {
           (update.critical ? '' : '<button class="bb sm danger" id="up-ignore">SKIP VERSION</button>') + '</div></div>';
       }
     } else if (state.phase === 'current') {
-      out += '<div class="up-empty">You have the latest StarNet (checked ' + esc(fmtTime(state.lastCheckedAt)) + ').</div>';
+      out += '<div class="up-empty">You have the latest ' + esc(APP_NAME) + ' (checked ' + esc(fmtTime(state.lastCheckedAt)) + ').</div>';
     } else if (state.phase === 'skipped') {
       // Never "latest": a newer release exists, the Commander chose to skip it.
       out += '<div class="up-empty">v' + esc(prefs.ignoredVersion) + ' is skipped. Press CHECK NOW to see it again.</div>';
     } else if (state.phase === 'checking') {
-      out += '<div class="up-empty">Checking for a newer StarNet...</div>';
+      out += '<div class="up-empty">Checking for a newer ' + esc(APP_NAME) + '...</div>';
     } else if (state.phase === 'idle') {
       // Not checked this launch: say only what is known — when the last check ran and what it found.
       const known = prefs.availableVersion && prefs.availableVersion !== state.currentVersion && prefs.availableVersion !== prefs.ignoredVersion ? prefs.availableVersion : '';
@@ -606,7 +635,7 @@ const Updates = (() => {
         ? 'The last check found v' + esc(known) + '. Press CHECK NOW to get it ready to install.'
         : skipped ? 'v' + esc(skipped) + ' is skipped. Press CHECK NOW to see it again.'
         : (state.lastCheckedAt ? 'Not checked since ' + esc(fmtTime(state.lastCheckedAt)) + '.' : 'Never checked for updates.') +
-          ' Press CHECK NOW to look for a newer StarNet.') + '</div>';
+          ' Press CHECK NOW to look for a newer ' + esc(APP_NAME) + '.') + '</div>';
     }
     if (state.phase === 'preparing' || state.phase === 'downloading' || state.phase === 'installing' || state.phase === 'restarting') {
       out += '<div class="up-progress"><div style="width:' + pct + '%"></div></div>' +
@@ -626,6 +655,7 @@ const Updates = (() => {
 
   // Open the releases page in the system browser — same invoke-with-fallback pattern app.js uses.
   function openReleasesPage() {
+    if (!RELEASES_PAGE) { notify(OFF_NOTE, 'warn'); return; }   // no page to open: never send the Commander to upstream's releases
     try {
       if (TAURI && typeof TAURI.invoke === 'function') {
         TAURI.invoke('open_external_url', { url: RELEASES_PAGE }).catch(() => {
@@ -662,6 +692,7 @@ const Updates = (() => {
     init, refreshStatus, check, install, preInstallDrain, snapshot, settingsHtml, wireSettings, render,
     openReleasesPage,   // the full installer (keeps all data) — the forward-version gate's door, which has no Update Center
     phase: () => state.phase,
+    off: () => UPDATES_OFF,   // true when this build has no update feed at all (fork identity)
     // True once an update install has committed — quitguard.js reads this so it never blocks the
     // macOS/Linux app.restart() close (Windows exits before restart, so it never asks).
     isInstalling: () => installing,

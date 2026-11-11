@@ -11,6 +11,7 @@
 // restarts the sidecar (which would kill the page the user is on).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod brand;
 mod credentials;
 mod desktop_assets;
 mod erase_all;
@@ -537,7 +538,7 @@ fn workspace_path(app: &tauri::AppHandle) -> PathBuf {
                 .or_else(|| std::env::var_os("APPDATA"))
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from("."));
-            base.join("ai.skynet.harness").join("workspaces")
+            base.join(brand::APP_IDENTIFIER).join("workspaces")
         })
 }
 
@@ -575,9 +576,10 @@ fn legacy_workspace_paths(root: &Path, current: &Path) -> Vec<PathBuf> {
         appdata_bases.push(home.join(".local").join("share"));
     }
     for base in appdata_bases {
-        push_unique_path(&mut out, base.join("StarNet").join("workspaces"));
-        push_unique_path(&mut out, base.join("Skynet").join("workspaces"));
-        push_unique_path(&mut out, base.join("ai.skynet.harness").join("workspaces"));
+        // FORK IDENTITY (brand.rs): only this app's own folders are migration/erase sources. Upstream's
+        // StarNet / Skynet / ai.skynet.harness roots are another app's data and are never listed.
+        push_unique_path(&mut out, base.join(brand::DATA_DIR_NAME).join("workspaces"));
+        push_unique_path(&mut out, base.join(brand::APP_IDENTIFIER).join("workspaces"));
     }
     push_unique_path(
         &mut out,
@@ -3324,7 +3326,7 @@ fn build_main_window(
         // Let HTML5 file drops reach COMMS and the existing attachment uploader.
         // Tauri's native handler otherwise intercepts them on Windows.
         .disable_drag_drop_handler()
-        .title("StarNet")
+        .title(brand::PRODUCT_NAME)
         .inner_size(1280.0, 832.0)
         .min_inner_size(960.0, 600.0)
         .initialization_script(&init)
@@ -5118,19 +5120,19 @@ fn local_voice_model_cache() -> Option<PathBuf> {
     if cfg!(windows) {
         std::env::var_os("LOCALAPPDATA")
             .map(PathBuf::from)
-            .map(|base| base.join("StarNet").join("models"))
+            .map(|base| base.join(brand::DATA_DIR_NAME).join("models"))
     } else if cfg!(target_os = "macos") {
         std::env::var_os("HOME").map(PathBuf::from).map(|home| {
             home.join("Library")
                 .join("Application Support")
-                .join("StarNet")
+                .join(brand::DATA_DIR_NAME)
                 .join("models")
         })
     } else {
         std::env::var_os("XDG_CACHE_HOME")
             .map(PathBuf::from)
             .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
-            .map(|base| base.join("starnet").join("models"))
+            .map(|base| base.join(brand::CACHE_DIR_NAME).join("models"))
     }
 }
 
@@ -5627,7 +5629,7 @@ fn main() {
                 let sep = PredefinedMenuItem::separator(app)?;
                 let menu = Menu::with_items(app, &[&open_item, &hud_item, &status_item, &sep, &pause_item, &quit_item])?;
                 let mut tray_builder = TrayIconBuilder::with_id("starnet-tray")
-                    .tooltip("StarNet")
+                    .tooltip(brand::PRODUCT_NAME)
                     .menu(&menu)
                     .show_menu_on_left_click(false)
                     .on_menu_event(|app, event| on_tray_menu(app, event.id.as_ref()))

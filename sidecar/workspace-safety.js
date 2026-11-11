@@ -1,5 +1,12 @@
-/* sidecar/workspace-safety.js — identify canonical user-data roots that DEV/QA must never mutate. */
+/* sidecar/workspace-safety.js — identify canonical user-data roots that DEV/QA must never mutate.
+
+   FORK IDENTITY (Art Studio Phase 0): two different questions used to share one list.
+     workspaceCandidates  -> the roots THIS app owns (frontend/app/brand.js DATA_HOMES). Recovery and the CLI
+                             look here, so the fork can never adopt or migrate an upstream StarNet station.
+     classifyWorkspace    -> the roots DEV/QA must never mutate: this app's own AND upstream StarNet's, because
+                             a dev seed or test run pointed at someone's real StarNet install is just as wrong. */
 'use strict';
+const Brand = require('../frontend/app/brand.js');
 
 function normalize(value, path, platform) {
   let out = path.resolve(String(value || ''));
@@ -8,7 +15,7 @@ function normalize(value, path, platform) {
   return platform === 'win32' ? out.toLowerCase() : out;
 }
 
-function workspaceCandidates(deps) {
+function workspaceCandidates(deps, apps) {
   const d = deps || {};
   const path = d.path;
   const env = d.env || {};
@@ -24,7 +31,7 @@ function workspaceCandidates(deps) {
   if (home) bases.push(path.join(home, '.local', 'share'));
   const out = [];
   for (const base of bases.filter(Boolean)) {
-    for (const app of ['StarNet', 'Skynet', 'ai.skynet.harness']) {
+    for (const app of (Array.isArray(apps) ? apps : Brand.DATA_HOMES)) {
       const candidate = path.join(String(base), app, 'workspaces');
       if (!out.some(existing => normalize(existing, path, platform) === normalize(candidate, path, platform))) out.push(candidate);
     }
@@ -41,7 +48,8 @@ function classifyWorkspace(root, deps) {
   if (!path || typeof path.resolve !== 'function' || typeof path.join !== 'function') {
     throw new Error('workspace-safety: an injected path is required');
   }
-  const candidates = workspaceCandidates({ path: path, env: env, platform: platform, homedir: homedir });
+  const candidates = workspaceCandidates({ path: path, env: env, platform: platform, homedir: homedir },
+    Brand.DATA_HOMES.concat(Brand.UPSTREAM.dataDirNames, [Brand.UPSTREAM.identifier]));
   const actual = normalize(root, path, platform);
   for (const candidate of candidates) {
     if (actual === normalize(candidate, path, platform)) {

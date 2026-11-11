@@ -7,6 +7,9 @@
   else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.codexTokenStore = api; }
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
+  // the fork's own app-data homes; a browser load (no require) reads the page global brand.js defines
+  const Brand = (typeof module !== 'undefined' && module.exports && typeof require === 'function')
+    ? require('../../frontend/app/brand.js') : (typeof globalThis !== 'undefined' ? globalThis.Brand : null);
 
   function validCodexTokens(raw) {
     return !!(raw && typeof raw === 'object'
@@ -40,9 +43,9 @@
     for (const root of (Array.isArray(opts.legacyWorkspaces) ? opts.legacyWorkspaces : [])) addRoot(root);
     for (const appBase of [env.LOCALAPPDATA, env.APPDATA, env.XDG_DATA_HOME]) {
       if (!appBase) continue;
-      addRoot(pathMod.join(appBase, 'StarNet', 'workspaces'));
-      addRoot(pathMod.join(appBase, 'Skynet', 'workspaces'));
-      addRoot(pathMod.join(appBase, 'ai.skynet.harness', 'workspaces'));
+      // FORK IDENTITY: only this app's own homes (frontend/app/brand.js). An upstream StarNet install's live
+      // OAuth refresh token is never read from, or copied out of, StarNet's folders.
+      for (const home of Brand.DATA_HOMES) addRoot(pathMod.join(appBase, home, 'workspaces'));
     }
     if (opts.sidecarDir) {
       addRoot(pathMod.join(opts.sidecarDir, 'workspaces'));

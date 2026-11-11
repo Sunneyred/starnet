@@ -3,6 +3,8 @@
    client_id, PKCE code_verifier) plus the refresh classification (rate-limit vs relogin) and the JWT-exp
    freshness check. Zero network. */
 'use strict';
+// the fork's own data homes (Art Studio Phase 0): token migration only ever looks inside these
+const FORK = require('../frontend/app/brand.js');
 const { readSidecarSource } = require('./helpers/source');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -162,9 +164,9 @@ function jwt(claims) {
   {
     const pathMod = require('node:path');
     const roamingBase = pathMod.join('C:\\', 'Users', 'u', 'AppData', 'Roaming');
-    const currentRoot = pathMod.join('C:\\', 'Users', 'u', 'AppData', 'Roaming', 'ai.skynet.harness', 'workspaces');
-    const legacyRoot = pathMod.join('C:\\', 'Users', 'u', 'AppData', 'Local', 'StarNet', 'workspaces');
-    const sidecarDir = pathMod.join('C:\\', 'Users', 'u', 'AppData', 'Local', 'StarNet', 'sidecar');
+    const currentRoot = pathMod.join('C:\\', 'Users', 'u', 'AppData', 'Roaming', FORK.APP_IDENTIFIER, 'workspaces');
+    const legacyRoot = pathMod.join('C:\\', 'Users', 'u', 'AppData', 'Local', FORK.DATA_DIR_NAME, 'workspaces');
+    const sidecarDir = pathMod.join('C:\\', 'Users', 'u', 'AppData', 'Local', FORK.DATA_DIR_NAME, 'sidecar');
     const localBase = pathMod.join('C:\\', 'Users', 'u', 'AppData', 'Local');
     const migrationOpts = {
       pathMod, currentWorkspaces: currentRoot, defaultWorkspaces: () => legacyRoot, sidecarDir,
@@ -224,7 +226,7 @@ function jwt(claims) {
     A.ok(tokenStore.isRecognizedWorkspaceRoot(currentRoot, migrationOpts),
       'the real Roaming app-data home is recognized, so version-rename migration still runs');
 
-    const brandedTempRoot = pathMod.join(pathMod.sep === '\\' ? 'C:\\' : '/', 'tmp', 'attacker', 'StarNet', 'workspaces');
+    const brandedTempRoot = pathMod.join(pathMod.sep === '\\' ? 'C:\\' : '/', 'tmp', 'attacker', FORK.DATA_DIR_NAME, 'workspaces');
     const brandedTempFiles = tokenStore.candidateCodexTokenFiles({
       pathMod, currentWorkspaces: brandedTempRoot, defaultWorkspaces: () => legacyRoot, sidecarDir,
       env: { LOCALAPPDATA: localBase, APPDATA: roamingBase }

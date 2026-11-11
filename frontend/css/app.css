@@ -6154,3 +6154,24 @@ body:has(#screen-game.active)::before {
 .consent-plan canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; }
 .consent-plan figcaption { margin-top: 6px; line-height: 1.5; color: var(--ph-dim); }
 .work-rate-reference { margin: 4px 0; overflow-wrap: anywhere; user-select: text; }
+
+/* ── FORK IDENTITY (Art Studio Phase 0) ─────────────────────────────────────────────────────────────
+   The app's own marks are TEXT (brand.js PRODUCT_NAME), not upstream's logo art: the StarNet wordmark and
+   logo are not licensed with the code (NOTICE.md). `.brand-text` turns each former image/mask slot into a
+   phosphor text mark and switches the mask off. Placeholder styling until the owner's own art (plan Phase 7). */
+.brand-text {
+  font-family: inherit; color: var(--ph-bright); white-space: nowrap; line-height: 1;
+  letter-spacing: 6px; text-transform: uppercase;
+}
+.logo-img.brand-text {
+  -webkit-mask: none; mask: none; background: none; aspect-ratio: auto; width: auto;
+  height: 30px; display: flex; align-items: center; font-size: 26px; color: var(--ph);
+}
+#screen-connect .ov-wordmark.brand-text {
+  -webkit-mask: none; mask: none; background: none; width: auto; height: 27px;
+  display: inline-flex; align-items: center; font-size: 24px;
+}
+.sp-logo.brand-text {
+  width: auto; max-width: 92vw; font-size: clamp(44px, 9vw, 120px); letter-spacing: 0.14em; text-align: center;
+  text-shadow: 0 0 18px var(--ph-glow), 0 0 60px var(--ph-glow2);
+}

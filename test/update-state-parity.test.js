@@ -279,24 +279,25 @@ function loadSaveModule() {
   A.eq(mCur, CUR, 'v6->v6: a current-version doc migrates losslessly (byte-identical, no field churn)');
 }
 
-// --- (4) MANUAL-FALLBACK ENDPOINT PARITY. updates.js bakes RELEASES_PAGE (the human releases
-// page behind DOWNLOAD LATEST MANUALLY) as a second copy of the repo slug that tauri.conf.json's
-// updater endpoint carries. If the releases repo ever moves and only one is updated, the manual
-// fallback would silently send users to a dead/stale page — exactly when the auto-updater is
-// already failing. Lock the two to the same owner/repo.
+// --- (4) NO RELEASE FEED, AND NO SECOND COPY OF ONE (fork identity, Art Studio Phase 0). Upstream pinned the
+// manual-fallback RELEASES_PAGE to the same owner/repo as the baked updater endpoint. This fork has no release
+// feed: the endpoint list is empty and updates.js takes its releases page from brand.js (empty while updates are
+// off). Lock both, and that neither names upstream's releases — a stale copy there would send the Commander to
+// install a different program over this one.
 {
   const fs = require('node:fs');
   const path = require('node:path');
-  const ROOT = path.resolve(__dirname, '..');
-  const conf = JSON.parse(fs.readFileSync(path.join(ROOT, 'src-tauri', 'tauri.conf.json'), 'utf8').replace(/^﻿/, ''));
-  const endpoint = conf.plugins.updater.endpoints[0];
+  const ROOT = path.join(__dirname, '..');
+  const conf = JSON.parse(fs.readFileSync(path.join(ROOT, 'src-tauri', 'tauri.conf.json'), 'utf8').replace(/^\uFEFF/, ''));
+  const Brand = require('../frontend/app/brand.js');
   const updatesSrc = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'updates.js'), 'utf8');
-  const pageMatch = updatesSrc.match(/RELEASES_PAGE = '([^']+)'/);
-  A.ok(pageMatch, 'updates.js declares RELEASES_PAGE');
-  const slugOf = u => (String(u).match(/github\.com\/([^/]+\/[^/]+)\//) || [])[1];
-  A.eq(slugOf(pageMatch[1] + '/'), slugOf(endpoint),
-    'manual-fallback releases page and the baked updater endpoint point at the SAME owner/repo');
-  A.ok(/\/releases\/latest$/.test(pageMatch[1]), 'manual fallback points at /releases/latest (never a pinned tag)');
+  A.eq(conf.plugins.updater.endpoints, [], 'the baked updater endpoint list is empty while updates are off');
+  A.ok(/const RELEASES_PAGE = \(!UPDATES_OFF && BRAND && BRAND\.UPDATES && BRAND\.UPDATES\.releasesPage\) \|\| '';/.test(updatesSrc),
+    'updates.js takes RELEASES_PAGE from brand.js, and only when updates are on');
+  A.eq(Brand.UPDATES.enabled ? /\/releases\/latest$/.test(Brand.UPDATES.releasesPage) : Brand.UPDATES.releasesPage === '', true,
+    'the releases page is empty while updates are off, and /releases/latest (never a pinned tag) once they are on');
+  A.ok(!/androoAGI|starnet-releases/.test(updatesSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')) && !/starnet-releases/.test(JSON.stringify(conf)),
+    'neither copy names upstream\'s release feed');
 }
 
 A.report('update-state-parity');

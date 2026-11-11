@@ -198,8 +198,10 @@ A.ok(/if let Err\(e\) = install_result[\s\S]*?\*guard = Some\(update\)/.test(mai
   'a failed native update restores the verified pending update for retry');
 A.ok(/UpdateInstallEvent::Installing[\s\S]*?app\.restart\(\)/.test(mainRs),
   'a successful macOS/non-Windows update reaches the explicit restart path');
-A.ok(/const KEYCHAIN_SERVICE: &str = "ai\.skynet\.harness"/.test(credentialsRs),
-  'candidate keeps the released OS keychain service namespace');
+// FORK IDENTITY (Art Studio Phase 0): this fork is not an upgrade of a released StarNet install, so it must NOT keep
+// StarNet's keychain namespace: its service is the fork's own identifier (src-tauri/src/brand.rs).
+A.ok(/const KEYCHAIN_SERVICE: &str = crate::brand::APP_IDENTIFIER/.test(credentialsRs),
+  'the OS keychain service namespace is the fork\'s own identifier');
 A.ok(/"openrouter" => KEYCHAIN_ACCOUNT\.to_string\(\)/.test(credentialsRs) && /format!\("provider:\{id\}"\)/.test(credentialsRs),
   'candidate keeps the released provider credential account references');
 A.ok(/format!\("channel:\{channel\}"\)/.test(credentialsRs) && /read_channel_token\(channel\)[\s\S]*?keychain_has_it[\s\S]*?remove\("token"\)/.test(credentialsRs),

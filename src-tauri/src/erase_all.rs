@@ -7,7 +7,8 @@
 //!
 //! Safety rules (each one is tested below):
 //!   * Only StarNet-owned locations are ever targets: every target must sit under a path component named
-//!     `ai.skynet.harness`, `StarNet`, `Skynet` or `starnet` and be at least three components deep. A user's project
+//!     one of this fork's own folders (brand.rs OWNED_DIR_NAMES_LOWER) and be at least three components deep. An
+//!     upstream StarNet install's folders (`ai.skynet.harness`, `StarNet`, `Skynet`) never qualify. A user's project
 //!     folder, home folder or a filesystem root can never qualify, whatever a caller passes.
 //!   * Links are never followed: a symlink/junction inside a target (or a target that is itself a link) is removed
 //!     as a link; whatever it points at is untouched. Trusted project folders are recorded by PATH in the station
@@ -20,7 +21,9 @@
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-const OWNED_NAMES: [&str; 3] = ["ai.skynet.harness", "starnet", "skynet"];
+// FORK IDENTITY (brand.rs): only this fork's own folder names. ERASE EVERYTHING must never be able to target an
+// upstream StarNet install's data, so `ai.skynet.harness`, `starnet` and `skynet` are deliberately not owned.
+const OWNED_NAMES: [&str; 2] = crate::brand::OWNED_DIR_NAMES_LOWER;
 
 /// True when `path` is one StarNet owns outright (see the module rules).
 pub fn is_starnet_owned(path: &Path) -> bool {
@@ -48,7 +51,7 @@ fn is_webview_dir(name: &str) -> bool {
 }
 
 /// Everything the erase deletes, in order. `app_data` is the parent of the active `workspaces` (the
-/// `ai.skynet.harness` app-data folder); its every entry except the fresh `workspaces` and a WebView folder is
+/// app-data folder named by brand::APP_IDENTIFIER); its every entry except the fresh `workspaces` and a WebView folder is
 /// StarNet's (logs, lifecycle prefs, update snapshots, START FRESH quarantines, migration/erase leftovers).
 /// `set_aside` is the old generation moved aside by fresh_start::set_aside_for_erase. `legacy_roots` are older
 /// StarNet data roots (only those under app-data bases are passed in; never the install folder). `extra` holds
@@ -73,7 +76,7 @@ pub fn plan_targets(
         .file_name()
         .map(|n| {
             n.to_string_lossy()
-                .eq_ignore_ascii_case("ai.skynet.harness")
+                .eq_ignore_ascii_case(crate::brand::APP_IDENTIFIER)
         })
         .unwrap_or(false);
     if app_data_is_ours {
@@ -223,7 +226,7 @@ pub const PROVIDER_IDS: [&str; 18] = [
     "claude-cli",
 ];
 
-/// Every keychain account (service `ai.skynet.harness`) StarNet's desktop shell can have created.
+/// Every keychain account (service brand::APP_IDENTIFIER) the desktop shell can have created.
 pub fn keychain_accounts(channels: &[&str], telegram_bots: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     for id in PROVIDER_IDS {
@@ -264,27 +267,34 @@ mod tests {
     #[test]
     fn ownership_guard_admits_only_starnet_locations() {
         assert!(is_starnet_owned(Path::new(
+            "/Users/a/Library/Application Support/com.sunneyred.artstation/workspaces"
+        )));
+        assert!(is_starnet_owned(Path::new(
+            "C:/Users/a/AppData/Local/ArtStation/models"
+        )));
+        // an upstream StarNet install on the same machine is another app's data: never a target
+        assert!(!is_starnet_owned(Path::new(
             "/Users/a/Library/Application Support/ai.skynet.harness/workspaces"
         )));
-        assert!(is_starnet_owned(Path::new(
+        assert!(!is_starnet_owned(Path::new(
             "C:/Users/a/AppData/Local/StarNet/models"
         )));
-        assert!(is_starnet_owned(Path::new(
+        assert!(!is_starnet_owned(Path::new(
             "/home/a/.local/share/Skynet/workspaces"
         )));
         assert!(!is_starnet_owned(Path::new("/Users/a/Projects/my-app")));
         assert!(!is_starnet_owned(Path::new("/Users/a")));
         assert!(!is_starnet_owned(Path::new("/")));
-        assert!(!is_starnet_owned(Path::new("/StarNet")));
+        assert!(!is_starnet_owned(Path::new("/ArtStation")));
         assert!(!is_starnet_owned(Path::new(
-            "C:/Users/a/Desktop/StarNet deliverables/report"
+            "C:/Users/a/Desktop/ArtStation deliverables/report"
         )));
     }
 
     #[test]
     fn plan_keeps_the_fresh_workspace_and_the_webview_and_skips_foreign_paths() {
         let root = scratch("plan");
-        let app = root.join("ai.skynet.harness");
+        let app = root.join(crate::brand::APP_IDENTIFIER);
         let ws = app.join("workspaces");
         for d in [
             ws.clone(),
@@ -298,7 +308,7 @@ mod tests {
         fs::write(app.join("startup.log"), b"x").unwrap();
         fs::write(app.join("lifecycle.json"), b"{}").unwrap();
         let user_project = root.join("Projects").join("my-app");
-        let legacy = root.join("StarNet").join("workspaces");
+        let legacy = root.join(crate::brand::DATA_DIR_NAME).join("workspaces");
         let plan = plan_targets(
             &app,
             &ws,
@@ -331,7 +341,7 @@ mod tests {
     #[test]
     fn removal_is_verified_and_never_follows_a_link_out_of_starnet_data() {
         let root = scratch("remove");
-        let app = root.join("ai.skynet.harness");
+        let app = root.join(crate::brand::APP_IDENTIFIER);
         let aside = app.join(".erasing-station-1");
         fs::create_dir_all(aside.join("agent-1").join("deep")).unwrap();
         fs::write(

@@ -7,7 +7,9 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-pub(crate) const KEYCHAIN_SERVICE: &str = "ai.skynet.harness";
+// The fork's own keychain service (brand.rs): sharing upstream's would let this app read and overwrite a
+// real StarNet install's provider keys, channel tokens and connector encryption key.
+pub(crate) const KEYCHAIN_SERVICE: &str = crate::brand::APP_IDENTIFIER;
 pub(crate) const KEYCHAIN_ACCOUNT: &str = "openrouter";
 
 /// Stable envelope-encryption key. Never replace an existing malformed/unreadable

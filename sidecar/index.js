@@ -53,6 +53,7 @@ const { makeWorkspaceLease } = require('./workspace-lease.js');
 const { makeWorkspaceOwner, makeBootedAt, describeIdentity: describeOwnerIdentity } = require('./workspace-owner.js');
 const { makeProcessIdentity } = require('./process-identity.js');
 const { classifyWorkspace, workspaceCandidates } = require('./workspace-safety.js');
+const Brand = require('../frontend/app/brand.js');   // the fork's identity: product name, bundle identifier, data folders
 const { inspectWorkspaceLineage, hasStationState, startFresh: startFreshWorkspace } = require('./workspace-lineage.js');
 const workspaceRecovery = require('./workspace-recovery.js');
 const { makeUpdatePreparation } = require('./update-preparation.js');
@@ -620,20 +621,15 @@ const peerOwnerCheck = require('./peerowner.js').makePeerOwnerCheck({
 // (ledger/memory/secrets/cron) and degrades every permission grant to a deny. App-data is always writable.
 function defaultWorkspaces() {
   if (process.platform === 'darwin') {
-    // Match Tauri app.path().app_data_dir() exactly. Older manual sidecars used ~/.local/share/StarNet;
-    // that location remains a recovery candidate, never a second canonical station.
-    return path.join(os.homedir() || '.', 'Library', 'Application Support', 'ai.skynet.harness', 'workspaces');
+    // Match Tauri app.path().app_data_dir() exactly (the fork's own bundle identifier — frontend/app/brand.js).
+    return path.join(os.homedir() || '.', 'Library', 'Application Support', Brand.APP_IDENTIFIER, 'workspaces');
   }
   const base = process.env.LOCALAPPDATA || process.env.APPDATA            // Windows: %LOCALAPPDATA% (machine-local app data)
     || process.env.XDG_DATA_HOME                                          // Linux XDG
     || path.join(os.homedir() || '.', '.local', 'share');                 // POSIX fallback
-  // Skynet→StarNet rename back-compat: prefer the NEW dir; if it doesn't exist yet but the OLD one does, keep
-  // using the old one IN PLACE (no move) so existing data is never lost and any old-code process that still
-  // looks for \Skynet\ keeps sharing the same data (no split-brain). Fresh installs land under \StarNet\.
-  const neu = path.join(base, 'StarNet', 'workspaces');
-  const old = path.join(base, 'Skynet', 'workspaces');   // legacy pre-rename location — read in place, never renamed
-  try { if (!fs.existsSync(neu) && fs.existsSync(old)) return old; } catch (_) {}
-  return neu;
+  // FORK IDENTITY (Art Studio Phase 0): this fork's own folder. Upstream's \StarNet\ and \Skynet\ folders are
+  // NOT fallbacks here — a real StarNet station on the same machine is never opened, adopted or written by this app.
+  return path.join(base, Brand.DATA_DIR_NAME, 'workspaces');
 }
 const WORKSPACES = ENV('WORKSPACES') ? path.resolve(ENV('WORKSPACES')) : defaultWorkspaces();
 const outputArtifacts = makeOutputArtifacts({ fsp, fs, pathMod: path, root: WORKSPACES, crypto });

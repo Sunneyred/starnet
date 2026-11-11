@@ -18,6 +18,14 @@ const APP_VERSION = TAURI_CONF.version;
 // evidence's latestJsonUrl against it. Derive the installer asset URL from the same channel
 // so this fixture tracks the configured endpoint instead of hardcoding a dead host.
 const LATEST_JSON_URL = TAURI_CONF.plugins.updater.endpoints[0];
+/* FORK IDENTITY (Art Studio Phase 0): this fork ships with NO updater endpoint (in-app updates are off; see
+   frontend/app/brand.js and test/brand-identity.test.js). The T5 proof compares hosted release evidence against the
+   configured endpoint, so with none configured there is nothing to prove and no fixture to derive. Say so and stop —
+   a named skip, never a silent pass. The whole file runs again the day plugins.updater.endpoints has an entry. */
+if (!LATEST_JSON_URL) {
+  console.log('t5-public-distribution.test: SKIPPED — no updater endpoint is configured (this fork has no release feed yet)');
+  process.exit(0);
+}
 const INSTALLER_URL = LATEST_JSON_URL.replace(/\/releases\/latest\/download\/latest\.json$/, '/releases/download/v' + APP_VERSION + '/StarNet_' + APP_VERSION + '_x64-setup.exe');
 
 function cleanEnv(extra) {

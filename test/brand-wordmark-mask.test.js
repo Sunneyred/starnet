@@ -68,13 +68,22 @@ A.ok(/background-color:\s*var\(--ph\)/.test(rule),
 A.ok(!/(drop-shadow|text-shadow|filter:\s*[^;]*(blur|brightness))/.test(rule),
   '.logo-img carries no CSS glow/brightness filter (removed per Andrew; it fuzzed the mark)');
 
-// ---- 3. the markup is a masked <span>, not an <img> -----------------------------------------
-const markEl = (html.match(/<[a-z]+[^>]*class="logo-img"[^>]*>/) || [])[0] || '';
-A.ok(markEl, 'index.html still mounts an element with class="logo-img"');
-A.ok(/^<span/.test(markEl),
-  'the mark is a <span> — an <img> cannot take var(--ph), and it was the img that had no size until it decoded');
-A.ok(/aria-label="STARNET"/.test(markEl) && /role="img"/.test(markEl),
-  'the masked span still names itself STARNET for assistive tech (a background image has no alt text)');
+// ---- 3. the app's OWN topbar mark is a text span, not the upstream wordmark -----------------
+// FORK IDENTITY (Art Studio Phase 0): StarNet's wordmark is not licensed with the code, so the app's own mark is the
+// fork's product name as TEXT (brand.js), in the same .logo-img seat. The base .logo-img rule above still describes
+// the SVG (the asset is still the StarNet-service provider logo in setup); `.logo-img.brand-text` in app.css switches
+// the mask off for the app's own mark. It stays a <span>: an <img> has no size until it decodes.
+const markEl = (html.match(/<[a-z]+[^>]*class="logo-img[^"]*"[^>]*>/) || [])[0] || '';
+A.ok(markEl, 'index.html still mounts an element with class "logo-img"');
+A.ok(/^<span/.test(markEl), 'the mark is a <span> (sized by its text at first layout, no image to decode)');
+A.ok(/class="logo-img brand-text"/.test(markEl) && /data-brand-name/.test(markEl),
+  'the mark is a brand text mark filled from brand.js');
+A.ok(!/aria-label="STARNET"/.test(markEl), 'the mark no longer names itself STARNET');
+const appCss = fs.readFileSync(path.join(root, 'frontend', 'css', 'app.css'), 'utf8');
+const textRule = (appCss.match(/\.logo-img\.brand-text\s*\{[^}]*\}/) || [])[0] || '';
+A.ok(/mask:\s*none/.test(textRule) && /-webkit-mask:\s*none/.test(textRule), 'the text mark switches both mask properties off');
+A.ok(/aspect-ratio:\s*auto/.test(textRule), 'the text mark takes its width from its text, not the SVG\'s aspect-ratio');
+A.ok(!/(drop-shadow|text-shadow|filter:)/.test(textRule), 'the topbar text mark carries no glow (the no-glow decision still stands)');
 
 // ---- 4. z-order: under the CRT glass, over the screen ---------------------------------------
 const logoRule = (css.match(/#logo\s*\{[^}]*\}/) || [])[0] || '';
