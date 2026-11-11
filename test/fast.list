@@ -77,6 +77,10 @@ test/art-canvas-probe.test.js
 test/art-ops.test.js
 test/art-products.test.js
 test/art-tools.test.js
+test/art-design-store.test.js
+test/art-plan-schema.test.js
+test/art-intake.test.js
+test/art-design-tools.test.js
 test/workspace-recovery.test.js
 test/workspace-recovery-fresh-start.test.js
 test/workspace-lineage.test.js

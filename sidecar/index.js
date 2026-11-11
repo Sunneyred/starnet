@@ -2514,6 +2514,12 @@ const workshopStore = makeWorkshopStore({
   onCorrupt: (key, file) => quarantineCorrupt(file, 'workshop'),
   warn: (...args) => console.warn.apply(console, args)
 });
+// ART STUDIO (Phase 2): one durable record per dropped design — the only thing the Gallery reads. Metadata only;
+// the image files live in the art line's working folder.
+const artDesignStore = require('./art/design-store.js').makeDesignStore({
+  fs: fs, path: path, workspaces: WORKSPACES, writeDurable: writeFileDurable,
+  now: () => Date.now(), newId: () => crypto.randomBytes(8).toString('hex')
+});
 const deliverableStore = makeDeliverableStore({
   fs: fs, path: path, workspaces: WORKSPACES, writeDurable: writeFileDurable,
   onRecover: (key, file) => console.warn('[deliverables] recovered ' + file + ' from .bak last-known-good.'),
@@ -13785,7 +13791,21 @@ function makeTriggerHub(hooks) {
     streamId: () => hooks.streamId()
   });
 }
+/* ART DROP intake (Art Studio Phase 2, art/intake.js): a folder trigger marked intake:'design' hands each dropped
+   image here first. It is copied into the trigger's line's working folder, measured, recorded as a design, and the
+   first stage's work item is composed from the record. The image library loads on the first drop, never at boot. */
+const artDesignIntake = require('./art/intake.js').makeDesignIntake({
+  fsp, path, store: artDesignStore,
+  artOps: { inspect: (buf) => require('./art/art-ops.js').defaultArtOps().inspect(buf) },
+  sha256: (buf) => crypto.createHash('sha256').update(buf).digest('hex'),
+  lineRoot: (lineId) => {
+    const plan = router.getPlan();
+    const l = ((plan && Array.isArray(plan.lines)) ? plan.lines : []).find(x => x && String(x.lineId) === String(lineId));
+    return l && typeof l.projectRoot === 'string' ? l.projectRoot.trim() : '';
+  }
+});
 const triggerRunner = makeTriggerRunner({
+  intakeDesign: artDesignIntake,
   load: () => triggerStore.load().value,
   save: (value) => { triggerStore.save(value); },
   seen: { load: () => triggerSeenStore.load().value, save: (value) => { triggerSeenStore.save(value); } },
@@ -21916,7 +21936,7 @@ async function runOnceCore(o) {
   // STUDIO, the art line (Art Studio Phase 1): what a design can be made into, measuring a design, and making the
   // exact print file for one product. Local and deterministic (sidecar/art/); the owner's product overrides live in
   // <workspaces>/art-products.json and are re-read per call.
-  makeArtTools({ fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust,
+  makeArtTools({ fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust, designStore: artDesignStore,
     loadCatalog: () => require('./art/products.js').loadCatalog({ fs, overridePath: path.join(WORKSPACES, 'art-products.json') }) }).register(registry);
   makeVoiceTools({ synth: media.synthesizeForAgent, fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust }).register(registry);   // pathTrust: project-scoped relative paths land in the project (issue #77)
   // STUDIO, the edit bay: DaVinci Resolve. Timeline FILES work with free Resolve; live control needs Resolve Studio and

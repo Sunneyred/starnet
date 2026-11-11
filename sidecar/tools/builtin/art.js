@@ -18,12 +18,25 @@
      recoloured, and whether the product's print spec is verified. A refusal (art too small, unknown product) is an
      error with the numbers in it, never a blurry file.
 
-   makeArtTools({ fsp, pathMod, root, pathTrust?, artOps?, loadCatalog? }) -> { tools, register(reg), _internals } */
+   DESIGN RECORDS (Phase 2-3). With a design store wired, three more tools tie the work to a dropped design's
+   durable record (sidecar/art/design-store.js) — the only thing the Gallery reads:
+
+     design_get            read   the record so far: the file, its measurements, the plan, print files, reviews
+     product_plan_submit   write  the Strategist's ranked product plan, validated against the catalog (plan-schema.js)
+     design_review         write  the Reviewer's verdict on one print file (pass / redo, capped at 2 redo rounds)
+
+   and art_prepare takes an optional "design": the print file is then recorded on that design, and a product that
+   cannot be made is recorded as skipped WITH the reason. These two writes touch only the record, never a file the
+   owner made, and never the network — so they are not consent-gated (the same posture as deliverable_note).
+
+   makeArtTools({ fsp, pathMod, root, pathTrust?, artOps?, loadCatalog?, designStore? }) -> { tools, register(reg), _internals } */
 'use strict';
 
 const fsMod = require('./fs.js');
 const ArtOps = require('../../art/art-ops.js');
 const Products = require('../../art/products.js');
+const PlanSchema = require('../../art/plan-schema.js');
+const { DesignError } = require('../../art/design-store.js');
 
 const MAX_SOURCE_BYTES = 80 * 1024 * 1024;   // a print-size PNG is tens of MB; refuse anything absurd before reading it
 const IMAGE_EXT = /\.(png|jpe?g)$/i;
@@ -42,6 +55,25 @@ function makeArtTools(deps) {
   const ops = () => _ops || (_ops = ArtOps.defaultArtOps());
   // the catalog is re-read per call so an owner's edit to the override file applies without a restart
   const catalog = () => (typeof deps.loadCatalog === 'function' ? deps.loadCatalog() : Products.loadCatalog());
+
+  const store = deps.designStore || null;
+  const DESIGN_ID = /^dsn_[a-z0-9]{6,40}$/;
+  /* designOf(args.design) -> the record, or a refusal a model can act on. null when no design was named. */
+  function designOf(v, required) {
+    const id = str(v);
+    if (!id) { if (required) throw new Error('design is required: the design id from the work item (it looks like dsn_…)'); return null; }
+    if (!store) throw new Error('this station keeps no design records, so a design id cannot be used here');
+    if (!DESIGN_ID.test(id)) throw new Error('"' + id + '" is not a design id (it looks like dsn_ followed by letters and digits) — copy it from the work item');
+    const rec = store.get(id);
+    if (!rec) throw new Error('no design ' + id + ' on record — copy the design id from the work item exactly');
+    return rec;
+  }
+  const storeMessage = e => (e instanceof DesignError ? e.message : String((e && e.message) || e));
+  // a run that worked on a design is noted on it (the Gallery sums real spend from these run ids)
+  async function noteRun(rec, ctx) {
+    const runId = ctx && (ctx.runId || ctx.run_id);
+    if (rec && store && runId) await store.addRun(rec.id, String(runId), 0).catch(require('../../failopen.js').swallow('art.design.note-run'));
+  }
 
   async function readSource(aid, path, ctx) {
     const rel = str(path);
@@ -154,8 +186,9 @@ function makeArtTools(deps) {
       '"remove_background" / "trim" (true/false to override the automatic choice), "out" (output filename). It REFUSES, with the ' +
       'numbers, when the artwork is too small to print at the product\'s minimum dpi — lower "fill" or skip that product; it never ' +
       'stretches. The result reports the size written, the dpi it prints at, and whether the product spec is verified.',
-    schema: { type: 'object', required: ['path', 'product'], properties: {
-      path: { type: 'string', description: 'the design file (PNG or JPEG) in your workspace or project' },
+    schema: { type: 'object', required: ['product'], properties: {
+      path: { type: 'string', description: 'the design file (PNG or JPEG) in your workspace or project. Optional when "design" is given (its recorded file is used)' },
+      design: { type: 'string', description: 'the design id (dsn_…) from the work item: records this print file on that design. The product must be in the design\'s submitted plan' },
       product: { type: 'string', description: 'product id from product_catalog' },
       placement: { type: 'string', description: 'placement id (default: the product\'s first)' },
       fabric: { type: 'string', description: 'fabric colour id, for fabric products' },
@@ -176,10 +209,16 @@ function makeArtTools(deps) {
       const { product, placement, fabric } = res;
       const recolor = str(args.recolor) || 'none';
       if (recolor !== 'none' && !fabric) throw new Error('recolor "' + recolor + '" needs a fabric product: ' + product.id + ' has no fabric colour to separate from');
-      const src = await readSource(aid, args.path, ctx);
+      const design = designOf(args.design, false);
+      if (design) {
+        // refuse BEFORE any work: a print file for a product nobody planned would be an orphan the record cannot hold
+        if (!design.plan) throw new Error('design ' + design.id + ' has no product plan yet — a plan must be submitted (product_plan_submit) before print files are made');
+        if (!design.plan.products.some(p => p.productId === product.id)) throw new Error('product ' + product.id + ' is not in design ' + design.id + '\'s plan (' + design.plan.products.map(p => p.productId).join(', ') + ')');
+      }
+      const src = await readSource(aid, str(args.path) || (design ? design.source.storedRel : ''), ctx);
 
       // choose the output first: an invalid or source-clobbering path must fail before any work
-      let rel = str(args.out) || ('art/' + slug(P.basename(src.rel)) + '/' + product.id + (fabric ? '-' + fabric.id : '') + '.png');
+      let rel = str(args.out) || ((design ? 'designs/' + design.id + '/print/' : 'art/' + slug(P.basename(src.rel)) + '/') + product.id + (fabric ? '-' + fabric.id : '') + '.png');
       if (!/\.png$/i.test(rel)) rel = rel.replace(/\.[a-z0-9]+$/i, '') + '.png';
       const placed = await jail.resolveInside(aid, rel, { scope: 'write', ctx });
       if (P.resolve(placed.abs) === P.resolve(src.abs)) throw new Error('the output would overwrite the original design (' + src.rel + '). Originals are never modified — choose a different "out" name.');
@@ -230,6 +269,11 @@ function makeArtTools(deps) {
           effectiveDpi: placedArt.effectiveDpi, requiredDpi: placedArt.requiredDpi, upscaled: placedArt.upscaled,
           verifiedSpec: product.verified, steps, lowContrastShare: contrast ? contrast.lowContrastShare : null
         };
+        let recorded = '';
+        if (design) {
+          try { await store.addVariant(design.id, Object.assign({}, data, { productId: product.id, placementId: placement.id, fabricId: fabric ? fabric.id : null, path: rel })); await noteRun(design, ctx); recorded = '\nRecorded on design ' + design.id + '.'; }
+          catch (e) { recorded = '\nNOT RECORDED on design ' + design.id + ': ' + storeMessage(e) + ' (the file was still written).'; }
+        }
         return {
           content: 'Print file saved: ' + rel + ' — ' + placedArt.width + 'x' + placedArt.height + ' px for ' + product.label + ' / ' + placement.label +
             (fabric ? ' on ' + fabric.label + ' fabric' : '') + '.' +
@@ -238,21 +282,137 @@ function makeArtTools(deps) {
             (steps.length ? '\nSteps: ' + steps.join('; ') + '.' : '\nSteps: placed as-is.') +
             (contrast ? '\nOn this fabric, ' + Math.round(contrast.lowContrastShare * 100) + '% of the artwork is nearly the fabric colour' + (contrast.lowContrastShare > 0.15 && recolor === 'none' ? ' — consider recolor:"separate" or "outline", or a different fabric.' : '.') : '') +
             (product.verified ? '' : '\nSPEC NOT VERIFIED: ' + product.sourceNote) +
-            '\nThe original ' + src.rel + ' was not changed.' +
+            '\nThe original ' + src.rel + ' was not changed.' + recorded +
             '\n' + where.line + (where.viewer ? '\nView: ' + where.viewer : ''),
           summary: 'print file → ' + rel,
           data
         };
       } catch (e) {
-        if (e instanceof ArtOps.ArtError) throw new Error('art_prepare could not make ' + product.id + ' from ' + src.rel + ': ' + e.message + '. No file was written.');
+        if (e instanceof ArtOps.ArtError) {
+          // too small to print is a FACT about this design on this product: note it on the record as a skip. A later
+          // successful art_prepare for the same product (a smaller fill) clears it.
+          let noted = '';
+          if (design && e.code === 'ART_TOO_SMALL') {
+            try { await store.skipProduct(design.id, product.id, e.message); noted = ' Recorded on design ' + design.id + ' as skipped for now; a smaller "fill" may still work.'; }
+            catch (se) { noted = ' (could not note this on design ' + design.id + ': ' + storeMessage(se) + ')'; }
+          }
+          throw new Error('art_prepare could not make ' + product.id + ' from ' + src.rel + ': ' + e.message + '. No file was written.' + noted);
+        }
         throw e;
       }
     }
   };
 
-  const tools = [catalogTool, inspectTool, prepareTool];
+  // ---------------- design_get ----------------
+  const designGetTool = {
+    name: 'design_get', capability: 'studio', scope: 'read', requiresConsent: false, timeoutMs: 15000,
+    description: 'Read a dropped design\'s record: its file path and pixel size, the measured background and artwork bounds, the ' +
+      'submitted product plan (if any), every print file made so far with its dpi and review verdict, mockups, and anything that ' +
+      'went wrong. Call it first when you are handed a design id, so you work from what has actually been done.',
+    schema: { type: 'object', required: ['design'], properties: { design: { type: 'string', description: 'the design id (dsn_…)' } } },
+    run: async (args) => {
+      const rec = designOf(args && args.design, true);
+      const f = rec.facts;
+      const lines = ['Design ' + rec.id + ' — status: ' + rec.status,
+        'File: ' + rec.source.storedRel + ' (' + rec.source.width + 'x' + rec.source.height + ' px; original name ' + rec.source.originalName + ')'];
+      if (f) lines.push('Measured: background ' + (f.background.kind === 'flat' ? 'flat ' + f.background.color : f.background.kind) +
+        '; artwork ' + f.bbox.width + 'x' + f.bbox.height + ' px covering ' + Math.round(f.coverage * 100) + '% of the canvas; dominant colours ' + f.dominantColors.slice(0, 4).map(c => c.hex).join(', '));
+      if (!rec.plan) lines.push('Plan: none submitted yet.');
+      else {
+        lines.push('Plan (fit judgement, ranked):');
+        for (const p of rec.plan.products) lines.push('  ' + p.score + '  ' + p.productId + '/' + p.placementId + (p.fabricId ? ' on ' + p.fabricId : '') + (p.verifiedSpec ? '' : ' [unverified spec]') + ' — ' + p.why);
+        for (const k of (rec.plan.skipped || [])) lines.push('  skipped ' + k.productId + ' (' + k.by + '): ' + k.reason);
+      }
+      if (rec.analysis) lines.push('Seen in the design: ' + rec.analysis.summary + (rec.analysis.textInArt ? ' Text in the art: ' + rec.analysis.textInArt : ''));
+      lines.push(rec.variants.length ? 'Print files:' : 'Print files: none yet.');
+      for (const v of rec.variants) lines.push('  ' + v.productId + (v.fabricId ? ' on ' + v.fabricId : '') + ' -> ' + v.path + ' (' + v.width + 'x' + v.height + ' px, ' + v.effectiveDpi + ' dpi' +
+        (v.lowContrastShare != null ? ', ' + Math.round(v.lowContrastShare * 100) + '% near the fabric colour' : '') + ') — review: ' +
+        (v.review ? v.review.verdict + (v.review.notes ? ' — ' + v.review.notes : '') : 'not reviewed') + (v.reviewRounds ? ' [redo rounds used: ' + v.reviewRounds + ']' : ''));
+      if (rec.mockups.length) { lines.push('Mockups:'); for (const m of rec.mockups) lines.push('  ' + m.productId + (m.fabricId ? ' on ' + m.fabricId : '') + ' -> ' + m.path); }
+      if (rec.errors.length) { lines.push('Problems recorded:'); for (const e of rec.errors.slice(-5)) lines.push('  ' + e.stage + ': ' + e.message); }
+      return { content: lines.join('\n'), summary: 'design → ' + rec.id + ' (' + rec.status + ')', data: rec };
+    }
+  };
+
+  // ---------------- product_plan_submit ----------------
+  const planTool = {
+    name: 'product_plan_submit', capability: 'studio', scope: 'write', requiresConsent: false, timeoutMs: 15000,
+    description: 'Record your decision of which products a design should be made into. Look at the design first (image_analyze) and ' +
+      'read product_catalog. Submit "analysis" (what the design shows: summary, subjects, mood, palette, textInArt) and "products": ' +
+      '1 to ' + PlanSchema.MAX_PRODUCTS + ' entries ranked best first, each { productId, fabricId (for fabric products), placementId (optional), ' +
+      'score (0-100 whole number), why (specific to THIS design), titleIdeas (optional) }. Optional "skipped": [{ productId, reason }] for ' +
+      'products you ruled out. The score is YOUR FIT JUDGEMENT — how well this design suits the product\'s shape, size and fabric. It is not ' +
+      'sales data and must not be described as such. The plan is checked against the catalog; every problem is reported at once so you ' +
+      'can fix and resubmit. A plan can be replaced until the first print file is made.',
+    schema: { type: 'object', required: ['design', 'analysis', 'products'], properties: {
+      design: { type: 'string', description: 'the design id (dsn_…) from the work item' },
+      analysis: { type: 'object', properties: { summary: { type: 'string' }, subjects: { type: 'array', items: { type: 'string' } }, mood: { type: 'string' },
+        palette: { type: 'array', items: { type: 'string' } }, textInArt: { type: 'string' }, notes: { type: 'string' } } },
+      products: { type: 'array', items: { type: 'object', required: ['productId', 'score', 'why'], properties: {
+        productId: { type: 'string' }, placementId: { type: 'string' }, fabricId: { type: 'string' }, score: { type: 'integer', minimum: 0, maximum: 100 },
+        why: { type: 'string' }, titleIdeas: { type: 'array', items: { type: 'string' } } } } },
+      skipped: { type: 'array', items: { type: 'object', properties: { productId: { type: 'string' }, reason: { type: 'string' } } } }
+    } },
+    run: async (args, ctx) => {
+      args = args || {};
+      const rec = designOf(args.design, true);
+      const v = PlanSchema.validatePlan({ analysis: args.analysis, products: args.products, skipped: args.skipped }, catalog());
+      if (!v.ok) throw new Error('the plan was NOT recorded. Fix these and submit again:\n- ' + v.errors.join('\n- '));
+      let saved;
+      try { saved = await store.setPlan(rec.id, v.analysis, v.plan, { agentId: ctx && ctx.agentId, model: ctx && ctx.model }); }
+      catch (e) { throw new Error('the plan was NOT recorded: ' + storeMessage(e)); }
+      await noteRun(rec, ctx);
+      const unverified = v.plan.products.filter(p => !p.verifiedSpec).map(p => p.productId);
+      return {
+        content: 'Plan recorded on design ' + rec.id + ' (status: ' + saved.status + '): ' + v.plan.products.map(p => p.productId + (p.fabricId ? '/' + p.fabricId : '') + ' ' + p.score).join(', ') + '.' +
+          (v.plan.skipped.length ? '\nSkipped: ' + v.plan.skipped.map(k => k.productId).join(', ') + '.' : '') +
+          (unverified.length ? '\nNote: the print specs of ' + unverified.join(', ') + ' are unverified planning figures.' : '') +
+          '\nThe scores are recorded as fit judgements, not sales data.',
+        summary: 'plan → ' + rec.id + ' (' + v.plan.products.length + ' product(s))',
+        data: saved
+      };
+    }
+  };
+
+  // ---------------- design_review ----------------
+  const reviewTool = {
+    name: 'design_review', capability: 'studio', scope: 'write', requiresConsent: false, timeoutMs: 15000,
+    description: 'Record your verdict on ONE print file of a design after LOOKING at it (image_analyze on the print file path from ' +
+      'design_get). "verdict": "pass" (good to mock up) or "redo" (the Designer should remake it — "notes" must then say exactly what to ' +
+      'change: a different fill, anchor, fabric or recolor). Check: is the subject cropped or cut off, is text legible at this size, does ' +
+      'the art read against the fabric colour, are there background remnants or rough edges. A print file can be sent back at most twice; ' +
+      'after that it is marked for the owner to look at and is NOT sent back again — the result tells you when that happened.',
+    schema: { type: 'object', required: ['design', 'product', 'verdict'], properties: {
+      design: { type: 'string' }, product: { type: 'string' }, fabric: { type: 'string', description: 'needed only when the product was made on more than one fabric' },
+      verdict: { type: 'string', enum: ['pass', 'redo'] }, notes: { type: 'string' } } },
+    run: async (args, ctx) => {
+      args = args || {};
+      const rec = designOf(args.design, true);
+      const verdict = str(args.verdict), notes = str(args.notes);
+      if (verdict !== 'pass' && verdict !== 'redo') throw new Error('verdict must be "pass" or "redo"');
+      if (verdict === 'redo' && notes.length < 15) throw new Error('a "redo" needs notes that tell the Designer exactly what to change (at least a sentence)');
+      let saved;
+      try { saved = await store.setReview(rec.id, { productId: str(args.product), fabricId: str(args.fabric) || undefined }, { verdict, notes }); }
+      catch (e) { throw new Error('the review was NOT recorded: ' + storeMessage(e)); }
+      await noteRun(rec, ctx);
+      const row = saved.variants.find(x => x.productId === str(args.product) && (!str(args.fabric) || x.fabricId === str(args.fabric)));
+      const final = row.review.verdict;
+      const waiting = saved.variants.filter(x => !x.review || x.review.verdict === 'redo').map(x => x.productId);
+      return {
+        content: 'Review recorded on design ' + rec.id + ': ' + row.productId + ' — ' + final.toUpperCase() +
+          (final === 'needs-owner' ? '. The redo limit (2 rounds) was already used, so this print file is NOT being sent back again: it goes to the owner marked "needs owner review". Do not ask for it to be remade.'
+            : final === 'redo' ? ' (redo round ' + row.reviewRounds + ' of 2). The Designer should remake it following your notes.' : '.') +
+          (waiting.length ? '\nStill to review or waiting on a redo: ' + waiting.join(', ') + '.' : '\nEvery print file has a final verdict.'),
+        summary: 'review → ' + rec.id + ' ' + row.productId + ' ' + final,
+        data: { verdict: final, reviewRounds: row.reviewRounds, waiting, status: saved.status }
+      };
+    }
+  };
+
+  // the three record tools exist only where a design store is wired; the first three always do
+  const tools = store ? [catalogTool, inspectTool, prepareTool, designGetTool, planTool, reviewTool] : [catalogTool, inspectTool, prepareTool];
   return {
-    tools, catalogTool, inspectTool, prepareTool,
+    tools, catalogTool, inspectTool, prepareTool, designGetTool, planTool, reviewTool,
     register(reg) { for (const t of tools) reg.register(t); return reg; },
     _internals: { readSource, slug, MAX_SOURCE_BYTES }
   };

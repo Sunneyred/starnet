@@ -24,7 +24,8 @@
      deps.emit(name, payload), deps.bumpQueue(agentId, d) -> depth, deps.queueCap
      deps.watcher (trigger-folder makeFolderWatcher), deps.now(), deps.newId(), deps.warn(msg)
      deps.label(agentId) -> display name|null     for the sentences the owner reads (lastError)
-     deps.folderConflict(path) -> reason|null  a watched folder inside a line's working folder (checked every fire) */
+     deps.folderConflict(path) -> reason|null  a watched folder inside a line's working folder (checked every fire)
+     deps.intakeDesign({trigger, file}) -> { ok, text } | { ok:false, skip, error }   optional: the ART DROP intake (art/intake.js) */
 'use strict';
 const T = require('./triggers.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
@@ -390,7 +391,33 @@ function makeTriggerRunner(deps) {
             continue;
           }
           if (bo) s.readBackoff.delete(f.key);
-          const text = T.composeFolderItem({ name: t.name, task: t.config.task, filePath: f.abs, size: f.size,
+          /* ART DROP (Art Studio Phase 2): a trigger marked intake:'design' hands the file to the design intake
+             before anything is spent. Intake copies the image into the line's working folder, records it as a design
+             and composes the work item. A file it DECLINES (not an image, unreadable as one, a duplicate) is marked
+             handled so it never starts a run and is not re-read every poll; one it cannot take YET (no working
+             folder, a disk error) backs off and is retried, exactly like an unreadable file. */
+          let designText = null;
+          if (t.config.intake === 'design') {
+            if (typeof d.intakeDesign !== 'function') { recordError(t.id, 'this station cannot take designs (no design intake is wired)'); break; }
+            let ing;
+            try { ing = await d.intakeDesign({ trigger: t, file: f }); }
+            catch (e) { ing = { ok: false, skip: false, error: 'design intake failed: ' + ((e && e.message) || e) }; }
+            if (!ing || !ing.ok) {
+              const why = (ing && ing.error) || 'the design could not be taken';
+              if (ing && ing.skip) {
+                mine[f.key] = now();
+                if (!saveSeen()) { delete mine[f.key]; recordError(t.id, 'could not record handled files — paused to avoid re-reading them'); break; }
+                recordError(t.id, why);
+              } else {
+                const k = ((s.readBackoff.get(f.key) || {}).n || 0) + 1;
+                s.readBackoff.set(f.key, { n: k, until: now() + Math.min(READ_BACKOFF_MAX_MS, READ_BACKOFF_MS * Math.pow(2, k - 1)) });
+                recordError(t.id, why + ' — retrying it later');
+              }
+              continue;
+            }
+            designText = String(ing.text || '');
+          }
+          const text = designText != null ? designText : T.composeFolderItem({ name: t.name, task: t.config.task, filePath: f.abs, size: f.size,
             mtimeIso: new Date(f.mtimeMs).toISOString(), binary: body.binary, content: body.content, truncated: body.truncated });
           /* ADMITTED IS NOT FIRED (sweep 2026-09-25): the waiting queue is in memory, so a file is recorded as fired
              only when its item DISPATCHES (dispatch marks `seenKey`). A restart, an E-STOP or a pause that drops the
