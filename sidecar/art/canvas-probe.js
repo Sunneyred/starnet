@@ -15,7 +15,8 @@
 
 function runProbe(load) {
   const report = { ok: false, library: '@napi-rs/canvas', version: null, resolvedFrom: null,
-    node: process.version, platform: process.platform, arch: process.arch, checks: [], error: null };
+    node: process.version, platform: process.platform, arch: process.arch, checks: [], error: null,
+    resolveNote: null, versionNote: null };
   const check = (name, fn) => {
     try { const detail = fn(); report.checks.push({ name, ok: true, detail: detail === undefined ? null : detail }); return true; }
     catch (e) { report.checks.push({ name, ok: false, detail: String((e && e.message) || e) }); return false; }
@@ -25,8 +26,9 @@ function runProbe(load) {
   let C = null;
   const loaded = check('load native module', () => {
     C = load ? load() : require('@napi-rs/canvas');
-    try { report.resolvedFrom = require.resolve('@napi-rs/canvas'); } catch (_) {}
-    try { report.version = require('@napi-rs/canvas/package.json').version; } catch (_) {}
+    // an injected loader (tests) may hand over a library this process cannot resolve by name: say so, never guess
+    try { report.resolvedFrom = require.resolve('@napi-rs/canvas'); } catch (e) { report.resolveNote = String((e && e.message) || e); }
+    try { report.version = require('@napi-rs/canvas/package.json').version; } catch (e) { report.versionNote = String((e && e.message) || e); }
     must(C && typeof C.createCanvas === 'function' && typeof C.loadImage === 'function', 'createCanvas/loadImage missing');
     return report.version;
   });
