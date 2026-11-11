@@ -39,7 +39,8 @@ const folderLib = require('./lib/folder.js');
 
 const REPO = path.resolve(__dirname, '..');
 const SIDECAR = path.join(REPO, 'sidecar', 'index.js');
-const DESKTOP_IDENTIFIER = 'ai.skynet.harness';   // Tauri identifier — app_data_dir()/workspaces is the desktop station
+const Brand = require('./lib/brand.js');   // the fork's identity (Art Studio Phase 0); falls back to a pinned copy when bin/ runs alone
+const DESKTOP_IDENTIFIER = Brand.APP_IDENTIFIER;   // Tauri identifier — app_data_dir()/workspaces is the desktop station
 const CANCEL_GRACE_MS = 5000;
 
 function log() { try { process.stderr.write(Array.prototype.join.call(arguments, ' ') + '\n'); } catch (_) {} }
@@ -59,10 +60,7 @@ function bareWorkspaces(env, platform) {
   const home = os.homedir() || '.';
   if (p === 'darwin') return path.join(home, 'Library', 'Application Support', DESKTOP_IDENTIFIER, 'workspaces');
   const base = e.LOCALAPPDATA || e.APPDATA || e.XDG_DATA_HOME || path.join(home, '.local', 'share');
-  const neu = path.join(base, 'StarNet', 'workspaces');
-  const old = path.join(base, 'Skynet', 'workspaces');
-  try { if (!fs.existsSync(neu) && fs.existsSync(old)) return old; } catch (_) {}
-  return neu;
+  return path.join(base, Brand.DATA_DIR_NAME, 'workspaces');   // mirrors sidecar/index.js defaultWorkspaces: the fork's own folder only
 }
 function exists(p) { try { return fs.existsSync(p); } catch (_) { return false; } }
 function hasStation(ws) { return exists(path.join(ws, 'agent.save.json')) || exists(path.join(ws, 'agent.roster.json')); }
@@ -166,7 +164,7 @@ function readTail(file, bytes) {
    StarNet.app/Contents/MacOS, Linux usr/bin — the layouts bin/starnet knows); the path the app wrote into its own
    startup.log the last time it started (`startupText`: that log's tail, when the caller already read it). '' when
    none of them is on disk. */
-const APP_NAMES = ['skynet-desktop', 'StarNet'];
+const APP_NAMES = ['skynet-desktop', Brand.PRODUCT_NAME];
 function findAppExe(ws, env, platform, startupText) {
   const e = env || process.env, p = platform || process.platform;
   const isFile = f => { try { return fs.statSync(f).isFile(); } catch (_) { return false; } };

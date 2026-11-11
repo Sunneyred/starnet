@@ -22,6 +22,19 @@ const result = spawnSync(process.execPath, [
   '--no-pre-build-ctor'
 ], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, { STARNET_UPDATER_KEY_FILE: keyFile }) });
 
+/* FORK IDENTITY (Art Studio Phase 0): this fork has no release feed and no updater signing key, so tauri.conf.json
+   carries no updater endpoint and createUpdaterArtifacts is false (test/brand-identity.test.js locks both).
+   release-cut.mjs is upstream's public release train; here its CORRECT behaviour is to refuse, loudly, before any
+   build or signing step — an upstream-style release can never be cut from the fork by accident. Assert that refusal.
+   The dry-run assertions below run again the day the fork has its own feed. */
+const forkConf = JSON.parse(readFileSync(join(ROOT, 'src-tauri', 'tauri.conf.json'), 'utf8').replace(/^\uFEFF/, ''));
+if (!(forkConf.plugins && forkConf.plugins.updater && (forkConf.plugins.updater.endpoints || []).length)) {
+  assert.notEqual(result.status, 0, 'with no release feed, release-cut must refuse');
+  assert.match(result.stdout + result.stderr, /createUpdaterArtifacts is false/, 'and name why');
+  assert.doesNotMatch(result.stdout + result.stderr, /signer sign/, 'without reaching any signing step');
+  console.log('release-cut.test: OK — release-cut refuses while this fork has no release feed (dry-run assertions skipped)');
+  process.exit(0);
+}
 assert.equal(result.status, 0, result.stderr || result.stdout);
 const output = result.stdout + result.stderr;
 assert.match(output, /desktop:build .*explicit updater signing follows/i);

@@ -15,8 +15,11 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const MARK = '# added by StarNet: the `starnet` terminal command';
-const OURS = /StarNet[^/]*\.app\/Contents\/Resources\/bin\/starnet$/;
+// FORK IDENTITY: only THIS app's bundle counts as ours (frontend/app/brand.js). An upstream StarNet.app link in
+// ~/.local/bin is another app's file: never re-pointed, and reported as left alone.
+const Brand = require('../frontend/app/brand.js');
+const MARK = '# added by ' + Brand.PRODUCT_NAME + ': the `starnet` terminal command';
+const OURS = new RegExp(Brand.PRODUCT_NAME.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[^/]*\\.app\\/Contents\\/Resources\\/bin\\/starnet$');
 const PROFILES = ['.zprofile', '.zshrc', '.zlogin', '.bash_profile', '.bashrc', '.profile'];
 
 /* o: { platform, execPath, home, env, exists(p) → bool, readlink(p) → string|null, readText(p) → string|null }
@@ -34,7 +37,7 @@ function planCliLink(o) {
   const cur = o.readlink(link);
   if (cur === target) { /* already ours, and current */ }
   else if (cur !== null && OURS.test(cur)) actions.push({ do: 'relink', dir, link, target, was: cur });   // the app moved
-  else if (cur !== null || o.exists(link)) return { skip: link + ' already exists and is not StarNet\'s — left alone' };
+  else if (cur !== null || o.exists(link)) return { skip: link + ' already exists and is not this app\'s — left alone' };
   else actions.push({ do: 'link', dir, link, target });
   // the folder on PATH: a login shell that reads any profile mentioning ~/.local/bin already has it
   const mentions = PROFILES.some(f => { const t = o.readText(path.posix.join(o.home, f)); return t !== null && /\.local\/bin/.test(t); });

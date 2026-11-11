@@ -97,8 +97,8 @@ const tail = s => s.trim().split('\n').slice(-3).join(' | ');
       STARNET_PORT: '', SKYNET_PORT: '', STARNET_WORKSPACES: '', SKYNET_WORKSPACES: '', STARNET_TOKEN: '', STARNET_API_TOKEN: '', SKYNET_API_TOKEN: ''
     });
     if (process.platform !== 'win32') env.HOME = profile;
-    const appData = process.platform === 'darwin' ? path.join(profile, 'Library', 'Application Support', 'ai.skynet.harness')
-      : path.join(profile, 'ai.skynet.harness');
+    const appData = process.platform === 'darwin' ? path.join(profile, 'Library', 'Application Support', require('../frontend/app/brand.js').APP_IDENTIFIER)
+      : path.join(profile, require('../frontend/app/brand.js').APP_IDENTIFIER);
     const ws = path.join(appData, 'workspaces');
     fs.mkdirSync(ws, { recursive: true });
     fs.writeFileSync(path.join(ws, 'agent.save.json'), JSON.stringify({ version: 1, agents: [{ agentId: 'agent', name: 'ULTRON' }] }));

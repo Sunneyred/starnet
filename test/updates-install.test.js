@@ -52,8 +52,13 @@ function makeCase(opts) {
     }
     throw new Error('unexpected fetch ' + url);
   };
+  /* FIXTURE IDENTITY (fork identity, Art Studio Phase 0). The shipped build has updates OFF (frontend/app/brand.js),
+     which test/brand-identity.test.js locks. This file tests the RETAINED check/install machinery — what runs again the
+     day the fork has its own release feed — so it hands updates.js an identity with updates ON and a releases page. The
+     fixture keeps the name the existing assertions were written against. */
   const context = {
     UpdateCore,
+    Brand: { PRODUCT_NAME: 'StarNet', UPDATES: { enabled: true, releasesPage: 'https://example.invalid/fixture/releases/latest', offNote: '' } },
     window: { __TAURI__: { core: { invoke, Channel } }, open() {} },
     localStorage: {
       get length() { return store.size; }, key(i) { return Array.from(store.keys())[i] || null; },
@@ -149,8 +154,8 @@ async function ready(c) { await c.updates.init(); await c.updates.check(true, 't
     A.ok(/class="up-error"[\s\S]*id="up-manual-err"/.test(body.innerHTML), 'the error card carries the manual installer button');
     A.ok(typeof handlers['up-manual-err:click'] === 'function', 'the installer button is wired');
     if (handlers['up-manual-err:click']) handlers['up-manual-err:click']({ preventDefault() {} });
-    const page = (fs.readFileSync(path.join(__dirname, '../frontend/app/updates.js'), 'utf8').match(/RELEASES_PAGE = '([^']+)'/) || [])[1];
-    A.ok(!!page, 'updates.js declares RELEASES_PAGE');
+    const page = 'https://example.invalid/fixture/releases/latest';   // the fixture identity's releases page (see makeCase)
+    A.ok(/RELEASES_PAGE = \(!UPDATES_OFF && BRAND && BRAND\.UPDATES && BRAND\.UPDATES\.releasesPage\) \|\| ''/.test(fs.readFileSync(path.join(__dirname, '../frontend/app/updates.js'), 'utf8')), 'updates.js takes RELEASES_PAGE from the identity');
     A.eq(c.opened, [page], 'the button opens the public releases page (the full installer), nothing invented');
   }
   {

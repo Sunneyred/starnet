@@ -9,6 +9,7 @@
    camfeed's accent ramp, rim and wall trim). The pick is saved beside the app's data (cli.json); STARNET_THEME overrides it. */
 const fs = require('fs');
 const path = require('path');
+const Brand = require('./brand.js');
 
 // the app's presets, verbatim from style.css (--ph, --ph-bright, --ph-dim, --text, --warn)
 const APP = {
@@ -69,7 +70,7 @@ function configFile(env, platform) {
   const e = env || process.env, p = platform || process.platform, home = e.HOME || e.USERPROFILE || '';
   const base = p === 'win32' ? e.APPDATA : p === 'darwin' ? (home && path.join(home, 'Library', 'Application Support'))
     : (e.XDG_DATA_HOME || (home && path.join(home, '.local', 'share')));
-  return base ? path.join(base, 'ai.skynet.harness', 'cli.json') : '';
+  return base ? path.join(base, Brand.APP_IDENTIFIER, 'cli.json') : '';
 }
 const known = n => NAMES.indexOf(String(n || '').toLowerCase().trim()) >= 0;
 // the theme to start with: STARNET_THEME, else the saved pick, else red

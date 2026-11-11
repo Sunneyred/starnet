@@ -5563,7 +5563,8 @@ const App = (() => {
             else if (phase === 'current') { if (msg) msg.textContent = 'no newer build is published yet — check back shortly.'; }
             else if (phase === 'error') { if (msg) msg.textContent = 'the update check failed' + (snap && snap.error ? ' — ' + snap.error : '') + '. Check your connection and try again.'; }
             else if (phase === 'checking' || phase === 'downloading' || phase === 'installing' || phase === 'restarting') { if (msg) msg.textContent = 'an update check is already running — one moment…'; }
-            else if (msg) msg.textContent = 'this build cannot check for updates — download the latest StarNet from starnetos.com, then reopen.';
+            else if (phase === 'off') { if (msg) msg.textContent = 'in-app updates are off in this build, so it cannot fetch a newer version. This station was saved by a newer build: open it with that build.'; }
+            else if (msg) msg.textContent = 'this build cannot check for updates — install the newer build that saved this station, then reopen.';
           } catch (_) { if (msg) msg.textContent = 'update check failed — try again in a moment.'; }
         } else if (msg) {
           msg.textContent = 'Update StarNet to the latest version (in the desktop app: Update Center), then reopen.';

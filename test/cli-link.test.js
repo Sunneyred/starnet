@@ -5,7 +5,8 @@
 const A = require('./_assert.js');
 const { planCliLink, applyCliLink, MARK } = require('../sidecar/cli-link.js');
 
-const APP = '/Applications/StarNet.app';
+const Brand = require('../frontend/app/brand.js');   // the fork's own bundle is the only one that counts as ours
+const APP = '/Applications/' + Brand.PRODUCT_NAME + '.app';
 const BIN = APP + '/Contents/Resources/bin/starnet';
 const HOME = '/Users/ada';
 function machine(files, links) {
@@ -34,11 +35,14 @@ const done = planCliLink(machine(withBin({ [HOME + '/.zshrc']: 'export PATH="$HO
 A.eq([done.actions.length, done.said], [0, ''], 'already linked and on PATH: nothing to do, nothing said');
 
 const mine = planCliLink(machine(withBin(), { [HOME + '/.local/bin/starnet']: '/opt/homebrew/bin/starnet-dev' }));
-A.ok(/already exists and is not StarNet's/.test(mine.skip), 'a starnet the user put there is left alone');
+A.ok(/already exists and is not this app's/.test(mine.skip), 'a starnet the user put there is left alone');
+// an upstream StarNet.app's own link is another app's file: never re-pointed at this app
+const theirs = planCliLink(machine(withBin({}), { [HOME + '/.local/bin/starnet']: '/Applications/StarNet.app/Contents/Resources/bin/starnet' }));
+A.ok(/already exists and is not this app's/.test(theirs.skip) && !theirs.actions, 'an upstream StarNet link is left alone, not taken over');
 const file = planCliLink(machine(withBin({ [HOME + '/.local/bin/starnet']: 'echo mine' })));
 A.ok(/already exists/.test(file.skip || ''), 'a plain file of that name is left alone too');
 
-const moved = planCliLink(machine(withBin({ [HOME + '/.profile']: 'PATH=~/.local/bin:$PATH' }), { [HOME + '/.local/bin/starnet']: '/Users/ada/Downloads/StarNet.app/Contents/Resources/bin/starnet' }));
+const moved = planCliLink(machine(withBin({ [HOME + '/.profile']: 'PATH=~/.local/bin:$PATH' }), { [HOME + '/.local/bin/starnet']: '/Users/ada/Downloads/' + Brand.PRODUCT_NAME + '.app/Contents/Resources/bin/starnet' }));
 A.eq(moved.actions.map(a => a.do), ['relink'], 'the app moved: its old link is re-pointed, the profile already has the folder');
 
 const calls = [];

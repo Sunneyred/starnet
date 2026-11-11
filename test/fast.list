@@ -72,6 +72,7 @@ test/concurrency.test.js
 test/workspace-lease.test.js
 test/workspace-owner.test.js
 test/workspace-safety.test.js
+test/brand-identity.test.js
 test/workspace-recovery.test.js
 test/workspace-recovery-fresh-start.test.js
 test/workspace-lineage.test.js

@@ -6,17 +6,20 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
 
-// Per-user model cache, alongside the rest of the app's data root (%LOCALAPPDATA%\StarNet on Windows,
-// ~/Library/Application Support/StarNet on macOS — the two platforms we ship). Never inside the repo:
-// these are ~150 MB of downloaded weights, and PRIVACY.md documents this path for manual removal.
+const Brand = require('../frontend/app/brand.js');
+
+// Per-user model cache, alongside the rest of the app's data root (%LOCALAPPDATA%\<DATA_DIR_NAME> on Windows,
+// ~/Library/Application Support/<DATA_DIR_NAME> on macOS). Never inside the repo: these are ~150 MB of
+// downloaded weights. The folder is this fork's own (frontend/app/brand.js) so ERASE EVERYTHING, which deletes
+// it, can never reach an upstream StarNet install's models. src-tauri/src/main.rs local_voice_model_cache mirrors it.
 function defaultCacheRoot() {
   if (process.platform === 'win32') {
-    return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'StarNet', 'models');
+    return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), Brand.DATA_DIR_NAME, 'models');
   }
   if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'StarNet', 'models');
+    return path.join(os.homedir(), 'Library', 'Application Support', Brand.DATA_DIR_NAME, 'models');
   }
-  return path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'starnet', 'models');
+  return path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), Brand.CACHE_DIR_NAME, 'models');
 }
 
 const cacheRoot = process.env.STARNET_MODEL_CACHE || defaultCacheRoot();

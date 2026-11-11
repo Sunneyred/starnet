@@ -13,7 +13,8 @@ const indexJs = readSidecarSource();
 const browserJs = fs.readFileSync(path.join(root, 'sidecar', 'tools', 'builtin', 'browser.js'), 'utf8');
 const cargoToml = fs.readFileSync(path.join(root, 'src-tauri', 'Cargo.toml'), 'utf8');
 
-A.eq(conf.bundle && conf.bundle.publisher, 'Andrew Sims', 'Windows package publisher matches the release signing identity instead of leaking the legacy identifier');
+// FORK IDENTITY (Art Studio Phase 0): the fork's owner publishes this build; it must not name upstream's author.
+A.eq(conf.bundle && conf.bundle.publisher, 'Sunneyred', 'Windows package publisher is the fork owner, never upstream\'s signing identity or the legacy identifier');
 A.ok(!cargoToml.includes('???'), 'desktop package metadata contains no corrupted placeholder punctuation');
 
 const csp = String(conf.app && conf.app.security && conf.app.security.csp || '');

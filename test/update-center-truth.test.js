@@ -41,8 +41,13 @@ function launch(store, opts) {
     }
     return {};
   };
+  /* FIXTURE IDENTITY (fork identity, Art Studio Phase 0). The shipped build has updates OFF (frontend/app/brand.js),
+     which test/brand-identity.test.js locks. This file tests the RETAINED check/install machinery — what runs again the
+     day the fork has its own release feed — so it hands updates.js an identity with updates ON and a releases page. The
+     fixture keeps the name the existing assertions were written against. */
   const context = {
     UpdateCore,
+    Brand: { PRODUCT_NAME: 'StarNet', UPDATES: { enabled: true, releasesPage: 'https://example.invalid/fixture/releases/latest', offNote: '' } },
     window: { __TAURI__: { core: { invoke, Channel: class {} } }, open() {} },
     document: { getElementById: id => (id === 'up-badge' ? badge : null) },
     localStorage: {

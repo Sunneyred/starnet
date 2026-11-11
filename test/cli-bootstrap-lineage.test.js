@@ -25,7 +25,7 @@ let n = 0;
 function scratch() {
   const p = path.join(root, 'p' + (++n));
   const env = { LOCALAPPDATA: path.join(p, 'local'), APPDATA: path.join(p, 'roaming'), XDG_DATA_HOME: path.join(p, 'xdg') };
-  const ws = path.join(env.APPDATA, 'ai.skynet.harness', 'workspaces');
+  const ws = path.join(env.APPDATA, require('../frontend/app/brand.js').APP_IDENTIFIER, 'workspaces');
   fs.mkdirSync(ws, { recursive: true });
   return { env, ws };
 }
@@ -51,12 +51,24 @@ try {
   }
   {
     const s = scratch();
-    const legacy = path.join(s.env.LOCALAPPDATA, 'Skynet', 'workspaces');
+    // FORK IDENTITY (Art Studio Phase 0): the app's other home is its own bare `npm start` folder (brand.js DATA_DIR_NAME)
+    const legacy = path.join(s.env.LOCALAPPDATA, require('../frontend/app/brand.js').DATA_DIR_NAME, 'workspaces');
     fs.mkdirSync(legacy, { recursive: true });
     fs.writeFileSync(path.join(legacy, 'agent.save.json'), '{}');
     const r = bootstrapWorkspace(s.ws, opts, s.env);
-    A.ok(!r.wrote && r.refused, 'a station in a legacy root (pre-rebrand Skynet folder): refused');
+    A.ok(!r.wrote && r.refused, 'a station in the app\'s other data home (the bare-sidecar folder): refused');
     A.eq(wrote(s.ws), [], 'nothing written');
+  }
+  {
+    // ...and an upstream StarNet station on the same machine is another app's data: it neither blocks a fresh
+    // station here nor is touched by it.
+    const s = scratch();
+    const theirs = path.join(s.env.LOCALAPPDATA, 'Skynet', 'workspaces');
+    fs.mkdirSync(theirs, { recursive: true });
+    fs.writeFileSync(path.join(theirs, 'agent.save.json'), '{"theirs":true}');
+    const r = bootstrapWorkspace(s.ws, opts, s.env);
+    A.ok(r.wrote && !r.refused, 'an upstream StarNet station is not this app\'s prior station: a fresh one is written');
+    A.eq(fs.readFileSync(path.join(theirs, 'agent.save.json'), 'utf8'), '{"theirs":true}', 'and the upstream station is untouched');
   }
   {
     const s = scratch();
