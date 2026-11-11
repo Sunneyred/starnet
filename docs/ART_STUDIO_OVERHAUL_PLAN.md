@@ -286,7 +286,7 @@ Acceptance:
 
 ### Phase 1 — Art engine and product catalog
 
-**STATUS:** 1a in progress on branch `art-studio/phase-1-art-engine` (2026-11-11). 1b–1d not started.
+**STATUS:** done on branch `art-studio/phase-1-art-engine` (commit `815916a7` plus this record), 2026-11-11.
 
 #### Phase 1a record (the image-library spike)
 
@@ -301,13 +301,56 @@ Acceptance:
 - **Proven in the sandbox (Linux):** the probe passes in the checkout, and passes from an install-shaped folder
   (a copy of `sidecar/` beside the staged `node_modules`, run from another directory), resolving the library from
   the staged tree.
-- **Not yet proven: Windows, installed app.** `.github/workflows/art-canvas-windows.yml` builds the unsigned NSIS
-  installer on a Windows runner, installs it silently, and runs the probe with the installed `node.exe` against
-  the installed sidecar. It is also the first real compile of the Phase 0 Rust changes, and it checks the app
-  installs under its own folder name. **Decision rule stands:** build on `@napi-rs/canvas` only once that job is
-  green; if it cannot be made green, `jimp` goes behind the same adapter.
-- The workflow runs on pushes to `art-studio/phase-1-**` and can be started by hand from the repo's Actions tab.
-  GitHub turns workflows off on a new fork until the owner enables them on that tab.
+- **Proven on Windows in an installed app (2026-11-11, GitHub Actions run 43056082773 and the run after it).**
+  `.github/workflows/art-canvas-windows.yml` built the unsigned NSIS installer (`ART STATION_0.14.1_x64-setup.exe`),
+  installed it silently on a clean Windows runner, and ran the probe with the installed `node.exe` (v22.23.2)
+  against the installed sidecar. Every check passed, and the library resolved from
+  `%LOCALAPPDATA%\ART STATION\node_modules\@napi-rs\canvas`, not from the checkout.
+  **Decision: the art engine is built on `@napi-rs/canvas`.** The `jimp` fallback was not needed; the adapter
+  seam (`makeArtOps({ canvas })`) stays so it can still be swapped.
+- **That job is also the Phase 0 proof that was owed.** It is the first real compile of the Phase 0 Rust changes.
+  Its last step launches the installed app: it created its own data folder
+  (`%APPDATA%\com.sunneyred.artstation\workspaces`, with the sidecar's files in it), was still running 20
+  seconds later (so the updater plugin starts with an empty endpoint list), and created none of upstream's folders
+  (`ai.skynet.harness`, `StarNet`, `Skynet`). Limit of that proof: the runner had no StarNet installed, so it shows
+  the app never creates or writes upstream's folders, not how it behaves beside an existing StarNet install.
+- The workflow runs on pushes to `art-studio/phase-1-**` that touch the probe, the dependencies, `src-tauri/` or
+  the workflow itself, and can be started by hand from the repo's Actions tab.
+
+#### Phase 1b–1d record
+
+- **1b `sidecar/art/art-ops.js`.** `inspect`, `trim`, `removeBackground`, `fit`, `printCheck`, `place`,
+  `fabricContrast`, `recolorForFabric`, all buffers in and out. Differences from the sketch below:
+  - `upscaleNeeded` became `printCheck(srcW, srcH, placement, opts)`. Each placement has a `minDpi`; art may be
+    enlarged only until it would print below it. `place()` refuses with `ART_TOO_SMALL` past that point and reports
+    the dpi it would have printed at and the largest share of the print area the art could fill instead.
+  - `recolorForFabric` strategies are `none`, `outline` and `separate` (the sketch's `invert-lights` is `separate`:
+    only pixels that nearly match the fabric are moved away from it). `fabricContrast` measures how much of the art
+    is nearly the fabric colour, so the Designer and Reviewer get a number.
+  - `removeBackground` flood-fills from the border, so the background colour inside the artwork is kept.
+- **1c `sidecar/art/products.js` + `products.default.json`.** Nine products. **Only `tee-front` is
+  `verified: true`** (Printful's 12 × 16 in DTG area and 150–300 DPI rule, read from Printful's own pages). The
+  other eight are planning figures and say so in `sourceNote`: for posters, stickers and phone cases the resolution
+  rule is Printful's but the sizes are standard sizes, not product templates; the hat is Printful's logo area in
+  inches at an assumed 300 DPI; the cover and wallpaper sizes are common sizes with no provider source. They must
+  be confirmed when a print provider is chosen (Phase 8). The validator checks that every pixel size equals its
+  inch size at its dpi. Owner overrides: `<workspaces>/art-products.json`, merged by product id, re-read on every
+  call; an invalid override is reported and not applied.
+- **1d `sidecar/tools/builtin/art.js`.** Tool names follow the studio's existing style, not the dotted names
+  sketched below: **`product_catalog`**, **`art_inspect`**, **`art_prepare`**. All three are granted by the
+  existing `studio` object (`CAP_REGISTRY`, `toolsets.js`, `frontend/app/toolprops.js`) and registered in
+  `sidecar/index.js`. `capsummary.js` was left as it is. `art_prepare` picks its steps from the product (remove a
+  flat background and trim when the product needs transparency), writes `art/<design>/<product>[-<fabric>].png`
+  through the workspace jail, refuses to write over the source, and reports the steps, the print dpi, the measured
+  fabric contrast and any unverified spec.
+- **Tests** (all in `test/fast.list`): `art-canvas-probe` (16), `art-ops` (92), `art-products` (86), `art-tools`
+  (66). `desktop-voice-bundle` and `toolprops` updated.
+- **Gate on the branch:** `npm run test:fast` 1474 of 1488 steps pass. The 14 failures are all in the Phase 0
+  baseline set of 15 (the timing-budget test `world-say-head` passed this run). `test:http` was not re-run for
+  Phase 1: the only sidecar route-level change is three tool registrations.
+- **Not done in Phase 1:** no agent has run these tools yet in a live conversation (that needs an AI key and
+  comes with the line in Phases 2–5); the art tools have run only in tests on Linux, and the probe, not the tools,
+  ran inside the Windows install.
 
 **1a. Pick the image library (spike first, about one session).**
 - Preferred: **`@napi-rs/canvas`**. It's already in the tree as a devDependency (`package.json`, `0.1.100`), has
