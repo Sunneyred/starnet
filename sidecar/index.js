@@ -101,6 +101,7 @@ const DeliverableTool = require('./tools/builtin/deliverable.js');   // delivera
 const { makeImageTools } = require('./tools/builtin/image.js');           // STUDIO: image_generate / image_analyze (OpenRouter multimodal)
 const { makeConnectorTools } = require('./tools/builtin/connectors.js');  // WEB: connectors.list — what the station HAS wired, and what it could (read-only, no secrets)
 const KeyTools = require('./tools/builtin/keys.js');  // WEB: keys.save — a key pasted into chat becomes a KEYS entry, spent by name
+const { makeArtTools } = require('./tools/builtin/art.js');               // STUDIO (Art Studio): product_catalog / art_inspect / art_prepare — deterministic print files, no network
 const { makeVoiceTools } = require('./tools/builtin/voice.js');           // STUDIO: voice_generate — speech saved into the workspace as a playable clip
 const { makeResolveTools } = require('./tools/builtin/resolve.js');       // STUDIO: DaVinci Resolve — FCPXML timelines (free) + live Studio control (Hermes-plugin port)
 const { makeSpotifyTools } = require('./tools/builtin/spotify.js');       // JUKEBOX: control/query the user's Spotify
@@ -21912,6 +21913,11 @@ async function runOnceCore(o) {
   // STUDIO, third skill: voice_generate — the agent MAKES a clip (voiceover, narration, audio message) into its
   // workspace. It drives the SAME media-service ladder /api/tts does (keyed neural chain, then the
   // free keyless Edge floor), so it needs no voice-specific credential and a zero-key station can still record.
+  // STUDIO, the art line (Art Studio Phase 1): what a design can be made into, measuring a design, and making the
+  // exact print file for one product. Local and deterministic (sidecar/art/); the owner's product overrides live in
+  // <workspaces>/art-products.json and are re-read per call.
+  makeArtTools({ fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust,
+    loadCatalog: () => require('./art/products.js').loadCatalog({ fs, overridePath: path.join(WORKSPACES, 'art-products.json') }) }).register(registry);
   makeVoiceTools({ synth: media.synthesizeForAgent, fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust }).register(registry);   // pathTrust: project-scoped relative paths land in the project (issue #77)
   // STUDIO, the edit bay: DaVinci Resolve. Timeline FILES work with free Resolve; live control needs Resolve Studio and
   // runs a fixed embedded Python bridge (never a shell). Media paths outside the workspace go through this run's path-trust.

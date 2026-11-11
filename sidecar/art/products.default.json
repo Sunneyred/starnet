@@ -1,0 +1,303 @@
+{
+  "version": 1,
+  "checkedOn": "2026-11-11",
+  "note": "Print areas for the art line. A product is `verified: true` only when its print area AND resolution rule were read from the print provider's own pages on `checkedOn` (see `source`). Everything else is `verified: false`: usable for planning and mockups, but confirm against the provider's File guidelines template before selling. Providers change templates; re-check when a store is chosen (plan Phase 8).",
+  "fabricColors": [
+    {
+      "id": "black",
+      "label": "Black",
+      "hex": "#0b0b0b",
+      "kind": "dark"
+    },
+    {
+      "id": "white",
+      "label": "White",
+      "hex": "#ffffff",
+      "kind": "light"
+    },
+    {
+      "id": "navy",
+      "label": "Navy",
+      "hex": "#1b2238",
+      "kind": "dark"
+    },
+    {
+      "id": "heather-grey",
+      "label": "Heather grey",
+      "hex": "#b8b8b8",
+      "kind": "light"
+    },
+    {
+      "id": "sand",
+      "label": "Sand",
+      "hex": "#d8c8a8",
+      "kind": "light"
+    }
+  ],
+  "products": [
+    {
+      "id": "tee-front",
+      "label": "T-shirt (front print)",
+      "category": "apparel",
+      "enabled": true,
+      "verified": true,
+      "source": "https://www.printful.com/blog/everything-you-need-to-know-to-prepare-the-perfect-printfile",
+      "sourceNote": "Printful: standard DTG print area 12 x 16 in; files at least 150 DPI and no higher than 300. Printful is moving some products to 15 x 18 in — check the product's File guidelines tab.",
+      "fabrics": [
+        "black",
+        "white",
+        "navy",
+        "heather-grey",
+        "sand"
+      ],
+      "transparentBackground": true,
+      "styleNotes": "Bold shapes and strong contrast read best. Fine detail and small text soften on fabric. Art needs a transparent background; a rectangular block prints as a rectangle.",
+      "placements": [
+        {
+          "id": "front",
+          "label": "Front",
+          "widthIn": 12,
+          "heightIn": 16,
+          "dpi": 300,
+          "minDpi": 150,
+          "widthPx": 3600,
+          "heightPx": 4800,
+          "safeInsetPx": 0,
+          "shape": "rect",
+          "defaultAnchor": "top"
+        }
+      ]
+    },
+    {
+      "id": "hoodie-front",
+      "label": "Hoodie (front print)",
+      "category": "apparel",
+      "enabled": true,
+      "verified": false,
+      "source": "https://www.printful.com/blog/everything-you-need-to-know-to-prepare-the-perfect-printfile",
+      "sourceNote": "Resolution rule (150-300 DPI) is Printful's. The 12 x 16 in area is assumed from the standard DTG area; hoodie fronts are often shorter because of the pocket. NOT confirmed for any specific hoodie.",
+      "fabrics": [
+        "black",
+        "white",
+        "navy",
+        "heather-grey"
+      ],
+      "transparentBackground": true,
+      "styleNotes": "As for t-shirts. Keep the art above the pocket line.",
+      "placements": [
+        {
+          "id": "front",
+          "label": "Front",
+          "widthIn": 12,
+          "heightIn": 16,
+          "dpi": 300,
+          "minDpi": 150,
+          "widthPx": 3600,
+          "heightPx": 4800,
+          "safeInsetPx": 0,
+          "shape": "rect",
+          "defaultAnchor": "top"
+        }
+      ]
+    },
+    {
+      "id": "dad-hat-front",
+      "label": "Dad hat (front)",
+      "category": "headwear",
+      "enabled": true,
+      "verified": false,
+      "source": "https://www.printful.com/blog/custom-embroidered-hats-guide-to-creating-a-design-and-embroidery-file",
+      "sourceNote": "Printful gives dad-hat front logos as 3.5-4 in wide and about 1.75-2 in tall. Those are embroidery/logo areas in inches; the pixel size here is that area at an assumed 300 DPI, not a provider print template. Embroidery also needs simplified art and a digitizing step.",
+      "fabrics": [
+        "black",
+        "white",
+        "navy",
+        "sand"
+      ],
+      "transparentBackground": true,
+      "styleNotes": "Very small, wide area. Only simple, bold marks or short words survive. Detailed collage art does not; expect the Strategist to skip most full designs here or use a cropped motif.",
+      "placements": [
+        {
+          "id": "front",
+          "label": "Front",
+          "widthIn": 4,
+          "heightIn": 1.75,
+          "dpi": 300,
+          "minDpi": 150,
+          "widthPx": 1200,
+          "heightPx": 525,
+          "safeInsetPx": 0,
+          "shape": "rect",
+          "defaultAnchor": "center"
+        }
+      ]
+    },
+    {
+      "id": "poster-18x24",
+      "label": "Poster 18 x 24 in",
+      "category": "wall-art",
+      "enabled": true,
+      "verified": false,
+      "source": "https://www.printful.com/create-digital-print-file",
+      "sourceNote": "Printful: 300 DPI is the ideal poster and canvas resolution (general rule 150-300 DPI) — that rule was read from the source page. 18 x 24 in is a standard poster size and the pixel size is that size at 300 DPI; it was not read from a specific product's template, and bleed is not included.",
+      "fabrics": [],
+      "transparentBackground": false,
+      "styleNotes": "Full-bleed art works well. Portrait 3:4. The whole design is seen at once, so detailed collage and texture read fully.",
+      "placements": [
+        {
+          "id": "full",
+          "label": "Full sheet",
+          "widthIn": 18,
+          "heightIn": 24,
+          "dpi": 300,
+          "minDpi": 150,
+          "widthPx": 5400,
+          "heightPx": 7200,
+          "safeInsetPx": 0,
+          "shape": "rect",
+          "defaultAnchor": "center",
+          "defaultMode": "cover"
+        }
+      ]
+    },
+    {
+      "id": "poster-12x16",
+      "label": "Poster 12 x 16 in",
+      "category": "wall-art",
+      "enabled": true,
+      "verified": false,
+      "source": "https://www.printful.com/create-digital-print-file",
+      "sourceNote": "Printful: 300 DPI is the ideal poster and canvas resolution (general rule 150-300 DPI) — that rule was read from the source page. 12 x 16 in is a standard poster size and the pixel size is that size at 300 DPI; it was not read from a specific product's template, and bleed is not included.",
+      "fabrics": [],
+      "transparentBackground": false,
+      "styleNotes": "As for the larger poster; a lower-priced size for smaller source files.",
+      "placements": [
+        {
+          "id": "full",
+          "label": "Full sheet",
+          "widthIn": 12,
+          "heightIn": 16,
+          "dpi": 300,
+          "minDpi": 150,
+          "widthPx": 3600,
+          "heightPx": 4800,
+          "safeInsetPx": 0,
+          "shape": "rect",
+          "defaultAnchor": "center",
+          "defaultMode": "cover"
+        }
+      ]
+    },
+    {
+      "id": "sticker-4x4",
+      "label": "Sticker 4 x 4 in",
+      "category": "sticker",
+      "enabled": true,
+      "verified": false,
+      "source": "https://www.printful.com/fabric-printing-guide-cotton-vs-poly-blends",
+      "sourceNote": "Printful states stickers need 300 DPI. The 4 x 4 in size is a common sticker size, not read from a specific product template.",
+      "fabrics": [],
+      "transparentBackground": true,
+      "styleNotes": "A single strong motif with a clear silhouette. Kiss-cut follows the art's outline.",
+      "placements": [
+        {
+          "id": "full",
+          "label": "Sticker",
+          "widthIn": 4,
+          "heightIn": 4,
+          "dpi": 300,
+          "minDpi": 300,
+          "widthPx": 1200,
+          "heightPx": 1200,
+          "safeInsetPx": 38,
+          "shape": "rect",
+          "defaultAnchor": "center"
+        }
+      ]
+    },
+    {
+      "id": "phone-case",
+      "label": "Phone case",
+      "category": "accessory",
+      "enabled": true,
+      "verified": false,
+      "source": "https://www.printful.com/fabric-printing-guide-cotton-vs-poly-blends",
+      "sourceNote": "Printful states phone cases need 300 DPI. Case dimensions differ for every phone model; this is a generic tall area for planning and mockups only.",
+      "fabrics": [],
+      "transparentBackground": false,
+      "styleNotes": "Tall and narrow, with a camera cut-out near the top. Full-bleed art; keep the subject in the lower two thirds.",
+      "placements": [
+        {
+          "id": "back",
+          "label": "Back",
+          "widthIn": 3,
+          "heightIn": 6,
+          "dpi": 300,
+          "minDpi": 300,
+          "widthPx": 900,
+          "heightPx": 1800,
+          "safeInsetPx": 45,
+          "shape": "rect",
+          "defaultAnchor": "bottom",
+          "defaultMode": "cover"
+        }
+      ]
+    },
+    {
+      "id": "cover-art",
+      "label": "Single / album cover (digital)",
+      "category": "digital",
+      "enabled": true,
+      "verified": false,
+      "source": "",
+      "sourceNote": "3000 x 3000 px is the size music distributors commonly ask for. Not read from a distributor's own page; confirm with the distributor the buyer uses.",
+      "fabrics": [],
+      "transparentBackground": false,
+      "styleNotes": "Square. Must read at thumbnail size on a phone. A digital product: nothing is printed, so the dpi figure only sets how far the art may be enlarged.",
+      "placements": [
+        {
+          "id": "square",
+          "label": "Cover",
+          "widthIn": 10,
+          "heightIn": 10,
+          "dpi": 300,
+          "minDpi": 150,
+          "widthPx": 3000,
+          "heightPx": 3000,
+          "safeInsetPx": 0,
+          "shape": "rect",
+          "defaultAnchor": "center",
+          "defaultMode": "cover"
+        }
+      ]
+    },
+    {
+      "id": "phone-wallpaper",
+      "label": "Phone wallpaper (digital)",
+      "category": "digital",
+      "enabled": true,
+      "verified": false,
+      "source": "",
+      "sourceNote": "1080 x 1920 px (9:16) is a common phone screen size, chosen for planning. Not a provider spec.",
+      "fabrics": [],
+      "transparentBackground": false,
+      "styleNotes": "9:16 portrait. Leave the top quarter calm for the clock and the bottom for the dock.",
+      "placements": [
+        {
+          "id": "screen",
+          "label": "Screen",
+          "widthIn": 3.6,
+          "heightIn": 6.4,
+          "dpi": 300,
+          "minDpi": 150,
+          "widthPx": 1080,
+          "heightPx": 1920,
+          "safeInsetPx": 0,
+          "shape": "rect",
+          "defaultAnchor": "center",
+          "defaultMode": "cover"
+        }
+      ]
+    }
+  ]
+}
