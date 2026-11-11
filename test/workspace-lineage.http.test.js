@@ -46,9 +46,14 @@ function station(name, updatedAt, marker) {
 (async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-lineage-http-'));
   const appData = path.join(sandbox, 'appdata');
-  const current = path.join(appData, 'ai.skynet.harness', 'workspaces');
-  const legacyA = path.join(appData, 'StarNet', 'workspaces');
-  const legacyB = path.join(appData, 'Skynet', 'workspaces');
+  // FORK IDENTITY (Art Studio Phase 0): the app's own homes are <identifier> and <DATA_DIR_NAME> under each app-data
+  // base (frontend/app/brand.js). Two prior generations therefore live in the bare-sidecar folder of the two bases;
+  // upstream StarNet's folders are no longer this app's lineage.
+  const FORK = require('../frontend/app/brand.js');
+  const localBase = path.join(appData, 'local'), roamingBase = path.join(appData, 'roaming');
+  const current = path.join(roamingBase, FORK.APP_IDENTIFIER, 'workspaces');
+  const legacyA = path.join(localBase, FORK.DATA_DIR_NAME, 'workspaces');
+  const legacyB = path.join(roamingBase, FORK.DATA_DIR_NAME, 'workspaces');
   fs.mkdirSync(current, { recursive: true }); fs.mkdirSync(legacyA, { recursive: true }); fs.mkdirSync(legacyB, { recursive: true });
   fs.writeFileSync(path.join(current, '.migration-receipt.json'), JSON.stringify({ version: 1, validated: true, files: [] }));
   fs.writeFileSync(path.join(legacyA, 'agent.save.json'), JSON.stringify(station('NOVA', 77, 'private-nova-marker')));
@@ -56,7 +61,7 @@ function station(name, updatedAt, marker) {
   const legacyABytes = fs.readFileSync(path.join(legacyA, 'agent.save.json'));
   const legacyBBytes = fs.readFileSync(path.join(legacyB, 'agent.save.json'));
   const baseEnv = Object.assign({}, process.env, {
-    LOCALAPPDATA: appData, APPDATA: appData,
+    LOCALAPPDATA: localBase, APPDATA: roamingBase,
     HOME: sandbox, USERPROFILE: sandbox, HOMEDRIVE: path.parse(sandbox).root.replace(/[\\\/]$/, ''), HOMEPATH: sandbox.slice(path.parse(sandbox).root.length - 1),
     SKYNET_WORKSPACES: current, SKYNET_API_TOKEN: TOKEN,
     SKYNET_LIVE_PRICES: '0', SKYNET_QUEST_REFRESH: '0', SKYNET_CRON: '0',

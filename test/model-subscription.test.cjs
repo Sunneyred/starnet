@@ -35,6 +35,9 @@ async function exercise(invoke) {
   assert.match(failure.notices[0][0], /www\.starnetos\.com\/pricing/);
   assert.equal(failure.notices[0][1], 'warn');
   const html = fs.readFileSync(path.join(__dirname, '../frontend/index.html'), 'utf8');
-  assert.match(html, /id="model-dock-subscription" href="https:\/\/www\.starnetos\.com\/pricing" target="_blank" rel="noopener noreferrer"/);
+  // FORK (owner decision 2026-11-11): the model dock no longer links upstream's subscription. The handler above is
+  // retained, unreachable code (modeldock.js wires it only when the element exists); the page must not carry the link.
+  assert.doesNotMatch(html, /id="model-dock-subscription"/);
+  assert.doesNotMatch(html.replace(/<!--[\s\S]*?-->/g, ''), /starnetos\.com\/pricing/);
   console.log('model-subscription: browser navigation, desktop bridge and failure feedback passed');
 })().catch(e => { console.error(e); process.exitCode = 1; });

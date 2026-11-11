@@ -162,7 +162,15 @@ are environmental, not regressions, and are the comparison set for every later p
 | Timing budget on a slow 2-core box | `world-say-head` |
 | Upstream's own planning ledger reports BLOCKED | `qa-product-perfect-claims` |
 
-`npm run test:http` and a packaged desktop build were not run in this sandbox (no WebKit, no Windows/macOS).
+A packaged desktop build cannot be made in this sandbox (no WebKit, no Windows/macOS).
+
+`npm run test:http` (added 2026-11-11, run on the branch): **256 of 269 steps pass, 13 fail.** A full baseline run
+of this suite was not made; instead each of the 13 was run alone on untouched `74fcd504`. Eleven fail there too
+(environmental: `checkpoint-stale-lock`, `cron-lock-recycled-pid.http`, `customer-journey.e2e`,
+`loops-endurance.e2e`, `output-recovery.e2e`, `payload.budget`, `remote.e2e`, `shell`, `skill-exchange.http`,
+`skill-market.e2e`, `summarize-failover.e2e`). Two passed on the baseline and failed here because their fixtures
+named upstream's folders: `workspace-lineage.http` and `cli-app-launch.e2e`. Both fixtures now use the fork's
+homes and pass, as does `workspace-recovery-fresh-start.http` (found the same way).
 
 **What changed.**
 - One identity source: `frontend/app/brand.js` (`PRODUCT_NAME` = `ART STATION`, `APP_IDENTIFIER` =
@@ -224,7 +232,6 @@ no browser in the sandbox, so nothing was checked by eye.
    `credentials.rs` were not compiled (the Tauri crate needs WebKit/Windows/macOS). First thing on the owner's
    machine: `npm ci`, `npm run desktop:build`, install it next to real StarNet, and confirm separate data.
 2. Assumption to confirm in that build: the updater plugin starts cleanly with an empty endpoint list.
-3. `npm run test:http` on the owner's machine.
 
 **Known gaps, on purpose, for Phase 7.**
 - The terminal command is still called `starnet`. On a machine with both apps installed, whichever is first on
@@ -234,9 +241,12 @@ no browser in the sandbox, so nothing was checked by eye.
   found about 3,500 "starnet" matches across `frontend/`, `sidecar/`, `bin/` and `src-tauri/`; that count includes
   code comments and internal keys and has not been sorted into visible versus internal.
 - Upstream's sprites and station art are untouched.
-- The "Start with StarNet" provider (upstream's paid credits service) and its account links are still offered,
-  with upstream's wordmark as its provider logo. Whether this fork should offer another company's paid service
-  is the owner's call (see §6).
+- ~~The "Start with StarNet" provider is still offered.~~ **Removed 2026-11-11 on the owner's decision.**
+  `CLOUD_LIVE` in `sidecar/index.js` is `false`, which is upstream's own switch for "behave exactly as if no
+  cloud existed": the START WITH card never appears and the account-link and credits routes are absent. The
+  connect-screen invitation, the model dock's subscription link and the credits line on the recovery screen were
+  deleted. The dormant code and hidden markup remain (removing them is a large, test-heavy change with no user
+  effect); setting the `STARNET_CLOUD_URL` environment variable by hand would still turn it on.
 - Upstream's release tooling (`scripts/release-*.mjs`, `update-canary.mjs`, `verify-update-host.mjs`) is
   unchanged and does not apply to this fork.
 
@@ -586,5 +596,6 @@ Ask these when the answer is needed. Don't block earlier phases on them.
 5. **Name and brand art:** needed before Phase 7 and before any public release.
 6. **Mockup blanks:** does the owner have blank product photos, or should Phase 4 generate starter blanks for
    approval?
-7. **Upstream's paid service:** the app still offers "Start with StarNet" (upstream's credits subscription) as a
-   way to connect an AI model. Keep it, hide it, or remove it? (Raised in Phase 0.)
+7. ~~Upstream's paid service: keep, hide or remove?~~ **Answered 2026-11-11: remove.** Done in Phase 0.
+
+**Answered 2026-11-11:** platform is **Windows**; AI provider is **Anthropic**.

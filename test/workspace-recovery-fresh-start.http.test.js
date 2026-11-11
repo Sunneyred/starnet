@@ -30,7 +30,7 @@ function write(root, rel, value) {
   fs.mkdirSync(childTemp);
   Object.assign(fixture.env, { HOME: fixture.profile, USERPROFILE: fixture.profile,
     TMP: childTemp, TEMP: childTemp, TMPDIR: childTemp });
-  const legacy = path.join(fixture.profile, 'StarNet', 'workspaces');
+  const legacy = path.join(fixture.profile, require('../frontend/app/brand.js').DATA_DIR_NAME, 'workspaces');
   const marker = { version: 1, erased: true, at: '2026-10-11T00:00:00.000Z', acknowledgedRoots: [legacy], quarantine: null, moved: [] };
   const markerBytes = JSON.stringify(marker);
   write(fixture.workspace, '.fresh-start.json', markerBytes);

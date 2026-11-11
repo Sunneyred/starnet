@@ -936,7 +936,10 @@ const CREDITS_LOW_USD = (() => { const n = Number(ENV('CREDITS_LOW_USD')); retur
 // flipped in the same breath, as `CREDITS.live` in website/site.js — the site's buy buttons and the app's link
 // button have to tell the same story on the same day. An explicit STARNET_CLOUD_URL always wins, so operators
 // and this repo's own live tests can point at a local service without touching the flag.
-const CLOUD_LIVE = true;                                    // ← launch switch: flip WITH website/site.js CREDITS.live
+// FORK (Art Studio, owner decision 2026-11-11): OFF. This fork does not offer upstream's paid StarNet credits
+// service, so the station behaves exactly as if no cloud existed: no START WITH hero, no account link, no credits
+// routes. test/brand-identity.test.js locks it. (website/site.js is upstream's site, not this app, and is left alone.)
+const CLOUD_LIVE = false;
 const CLOUD_URL_DEFAULT = 'https://account.starnetos.com';   // the deployed StarNet Cloud (see starnet-cloud)
 const CLOUD_URL = String(ENV('CLOUD_URL') || (CLOUD_LIVE ? CLOUD_URL_DEFAULT : '')).trim();
 // The linked station's device token, injected by the DESKTOP from the OS keychain at spawn (keychain account

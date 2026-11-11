@@ -96,6 +96,15 @@ const defaultWs = stripJs(sidecarFunctionSource('defaultWorkspaces'));
 A.ok(/Brand\.APP_IDENTIFIER/.test(defaultWs) && /Brand\.DATA_DIR_NAME/.test(defaultWs), 'the sidecar\'s default data root is built from brand.js');
 A.ok(!/['"](ai\.skynet\.harness|StarNet|Skynet)['"]/.test(defaultWs), 'the sidecar\'s default data root names no upstream folder');
 
+// ---- 5b. upstream's paid credits service is not offered (owner decision, 2026-11-11) ----------
+const { readSidecarIndex } = require('./helpers/source.js');
+const idx = readSidecarIndex();
+A.ok(/^const CLOUD_LIVE = false;/m.test(idx), 'the StarNet Cloud switch is off: no account link, no credits, no START WITH hero');
+A.ok(/CLOUD_LIVE \? CLOUD_URL_DEFAULT : ''/.test(idx), 'with the switch off the default cloud URL is empty');
+A.ok(!/id="model-dock-subscription"/.test(visible) && !/starnetos\.com\/pricing/.test(visible), 'the page carries no link to upstream\'s subscription');
+A.ok(!/Start with StarNet/.test(visible), 'the connect screen does not invite a StarNet start');
+A.ok(/class="prov prov-hero hidden" data-prov="starnet"/.test(visible), 'the StarNet provider card stays hidden markup (revealed only by a linkable cloud, which is off)');
+
 // ---- 6. behaviour: whose data is whose -------------------------------------------------------
 const { classifyWorkspace, workspaceCandidates } = require('../sidecar/workspace-safety.js');
 const winDeps = { path: path.win32, platform: 'win32', homedir: () => 'C:\\Users\\Ada',

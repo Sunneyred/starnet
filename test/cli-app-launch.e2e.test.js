@@ -99,7 +99,7 @@ const tail = s => s.trim().split('\n').slice(-4).join(' | ');
   const mock = await startMockModel();
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-app-launch-'));
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-app-launch-run-'));
-  const appData = process.platform === 'darwin' ? path.join(profile, 'Library', 'Application Support', 'ai.skynet.harness') : path.join(profile, 'ai.skynet.harness');
+  const appData = process.platform === 'darwin' ? path.join(profile, 'Library', 'Application Support', require('../frontend/app/brand.js').APP_IDENTIFIER) : path.join(profile, require('../frontend/app/brand.js').APP_IDENTIFIER);
   const ws = path.join(appData, 'workspaces');
   const cfgFile = path.join(scratch, 'app.json');
   const record = path.join(scratch, 'launches.ndjson');
