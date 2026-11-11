@@ -481,6 +481,12 @@ const WorldModel = (() => {
     ANALYST:    { desc: 'turns the branches into one answer',   cls: 'analyst' },
     FIXER:      { desc: 'takes over when the loop gives up',    cls: 'chief' },
     PLANNER:    { desc: 'divides the job into parts for the branches', cls: 'analyst' },   // the step before a SPLIT THE JOB splitter (2026-10-10)
+    // THE ART LINE (Art Studio Phase 5): four steps, each named for what it does to a dropped design. `name`: a recruit is
+    // named for the step. They are their own roles (not WRITER / REVIEWER) so a shelf-stamped art line lands with the art briefs.
+    STRATEGIST: { desc: 'looks at the design & picks the products', cls: 'analyst', name: 'STRATEGIST' },
+    DESIGNER:   { desc: 'makes the print file for each product',    cls: 'chief', name: 'DESIGNER' },
+    INSPECTOR:  { desc: 'checks each print file & calls the verdict', cls: 'reviewer', name: 'INSPECTOR' },
+    MOCKUP:     { desc: 'renders the product mockups',              cls: 'chief', name: 'MOCKUP' },
   };
   /* THE SHELF (expanded 2026-08-29). Array order IS shelf order: the simplest working line first,
      then one line per MACHINE the floor owns — FILTER, SPLITTER, LOOP gate, JOINER, MERGER — so a
@@ -570,6 +576,40 @@ const WorldModel = (() => {
         { x: 8, y: 0, d: 'W' }, { x: 7, y: 0, d: 'W' }, { x: 6, y: 0, d: 'W' }, { x: 5, y: 0, d: 'W' },
         { x: 4, y: 0, d: 'W' },
         { x: 3, y: 0, d: 'S' }, { x: 3, y: 1, d: 'S' }, { x: 3, y: 2, d: 'S' }, { x: 3, y: 3, d: 'S' },
+      ] },
+    /* THE ART LINE (Art Studio Phase 5). A dropped design is planned, made into print files, checked (the INSPECTOR's
+       verdict sends a product back to the DESIGNER — never to the STRATEGIST: the plan stands, only the files are redone),
+       then mocked up. Folded onto two rows so it fits the standard 18-wide room: the top row runs east to the LOOP gate,
+       the gate's approved lane turns south and the bottom row runs back west to the OUTBOX. maxIter 3 = the first pass plus
+       the two redo rounds the design record allows (design-store MAX_REVIEW_ROUNDS) — the two caps agree on purpose. */
+    { id: 'art_line', grp: 'gate', label: 'ART LINE', w: 18, h: 8,
+      desc: 'INBOX ▸ STRATEGIST ▸ DESIGNER ▸ INSPECTOR ▸ LOOP GATE ▸ MOCKUP ▸ OUTBOX — drop a design: one agent picks the products, one makes each print file, one checks them (and sends bad ones back, 3 passes max), one renders the mockups.',
+      props: [
+        // THE BUDGET RIDES IN (the plan's "every art line has a spend budget"): $5 a day and $2 a design at most, and 8 stages
+        // after the first — the line's own worst case is 7 (three DESIGNER/INSPECTOR passes, then MOCKUP), one more than the
+        // station default of 6, which would otherwise stop a third pass before its mockups. The owner changes them on the INBOX.
+        { t: 'intake', x: 0, y: 3, w: 2, h: 2, label: 'ART DROP', limits: { maxHops: 8, maxUsdPerMessage: 2, maxUsdPerDay: 5 } },
+        { t: 'bay', x: 4, y: 3, w: 2, h: 2, role: 'STRATEGIST' },
+        { t: 'bay', x: 9, y: 3, w: 2, h: 2, role: 'DESIGNER' },
+        { t: 'bay', x: 13, y: 3, w: 2, h: 2, role: 'INSPECTOR' },
+        { t: 'loop', x: 17, y: 4, w: 1, h: 1, block: false, done: 'S', when: 'approved', maxIter: 3 },
+        { t: 'bay', x: 12, y: 6, w: 2, h: 2, role: 'MOCKUP' },
+        { t: 'outbox', x: 7, y: 6, w: 2, h: 2 },
+      ],
+      belts: [
+        { x: 2, y: 4, d: 'E' }, { x: 3, y: 4, d: 'E' },
+        { x: 6, y: 4, d: 'E' }, { x: 7, y: 4, d: 'E' }, { x: 8, y: 4, d: 'E' },
+        { x: 11, y: 4, d: 'E' }, { x: 12, y: 4, d: 'E' },
+        { x: 15, y: 4, d: 'E' }, { x: 16, y: 4, d: 'E' }, { x: 17, y: 4, d: 'S' },
+        // approved: south out of the gate, then west along the bottom row into the MOCKUP bay and on to the OUTBOX
+        { x: 17, y: 5, d: 'S' }, { x: 17, y: 6, d: 'S' }, { x: 17, y: 7, d: 'W' },
+        { x: 16, y: 7, d: 'W' }, { x: 15, y: 7, d: 'W' }, { x: 14, y: 7, d: 'W' },
+        { x: 11, y: 7, d: 'W' }, { x: 10, y: 7, d: 'W' }, { x: 9, y: 7, d: 'W' },
+        // the BACK lane: up out of the gate, west over the top, down into the DESIGNER's ring (full column to the lane row)
+        { x: 17, y: 3, d: 'N' }, { x: 17, y: 2, d: 'N' }, { x: 17, y: 1, d: 'N' }, { x: 17, y: 0, d: 'W' },
+        { x: 16, y: 0, d: 'W' }, { x: 15, y: 0, d: 'W' }, { x: 14, y: 0, d: 'W' }, { x: 13, y: 0, d: 'W' },
+        { x: 12, y: 0, d: 'W' }, { x: 11, y: 0, d: 'W' }, { x: 10, y: 0, d: 'W' }, { x: 9, y: 0, d: 'W' },
+        { x: 8, y: 0, d: 'S' }, { x: 8, y: 1, d: 'S' }, { x: 8, y: 2, d: 'S' }, { x: 8, y: 3, d: 'S' },
       ] },
     { id: 'sorting_office', grp: 'sort', label: 'SORTING OFFICE', w: 13, h: 5,
       desc: 'INBOX ▸ FILTER ▸ two BAYs ▸ two OUTBOXes — the filter sends code one way, everything else the other; each lane ships its result.',
@@ -963,6 +1003,7 @@ const WorldModel = (() => {
     research_line: 'Research + write', swarm_synthesis: 'Three researchers', deep_dive: 'Deep dive + review', assembly_line: 'Four-step chain',
     sorting_office: 'Sort by type', triage_desk: 'Three specialists', parallel_crew: 'Split across three', load_balancer: 'Take turns', mission_control: 'Full triage',
     second_opinion: 'Second opinion', gauntlet: 'Two takes, reviewed',
+    art_line: 'Design to products',
   };
   const LINE_WORK = {
     front_desk: 'any', allowance_desk: 'any', ship_out: 'any', two_doors: 'any',
@@ -971,6 +1012,7 @@ const WorldModel = (() => {
     research_line: 'research', swarm_synthesis: 'research', deep_dive: 'research', assembly_line: 'research',
     sorting_office: 'volume', triage_desk: 'volume', parallel_crew: 'volume', load_balancer: 'volume', mission_control: 'volume',
     second_opinion: 'decide', gauntlet: 'decide',
+    art_line: 'write',
   };
   for (const bp of BLUEPRINTS) { if (LINE_PLAIN[bp.id]) bp.plain = LINE_PLAIN[bp.id]; if (LINE_WORK[bp.id]) bp.work = LINE_WORK[bp.id]; }
 

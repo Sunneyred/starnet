@@ -40,6 +40,12 @@
       key: 'cabinet:write',
       label: 'Write files on its own',
       desc: "Create and edit files in its own workspace while you're away. Needs an INTEL CAB placed in its room to actually take effect. Stays inside the workspace — .env/.git are always protected — and every change is checkpointed, so you can undo anything it does."
+    },
+    {
+      // ART STUDIO (Phase 5): art_prepare + mockup_render. Local, free, never over the original design.
+      key: 'art:write',
+      label: 'Save print files and mockups on its own',
+      desc: "Let the art line save new print files and mockups without asking each time. Needs a STUDIO placed in the room to take effect. It only ever writes NEW image files inside its own folder — your original designs are never changed — and it uses no network and spends nothing. Paid image generation is separate and still asks."
     }
   ];
 
@@ -98,9 +104,9 @@
   // INTEL CAB in the agent's room — the grant is the CONSENT, the placed object is the CAPABILITY. The panel
   // uses this so a granted-but-inert capability is shown honestly (with a "place an INTEL CAB" nudge), never as a
   // silent "writes files" that does nothing — the exact "app lies" beat this project refuses.
-  const GRANT_OBJECT = { 'cabinet:write': 'cabinet' };
+  const GRANT_OBJECT = { 'cabinet:write': 'cabinet', 'art:write': 'studio' };
   function grantObject(key) { return GRANT_OBJECT[key] || null; }                 // the cap-object a grant needs, or null
-  function objectHint(key) { return key === 'cabinet:write' ? 'needs an INTEL CAB placed in its room to take effect' : ''; }
+  function objectHint(key) { return key === 'cabinet:write' ? 'needs an INTEL CAB placed in its room to take effect' : key === 'art:write' ? 'needs a STUDIO placed in its room to take effect' : ''; }
   // is a grant actually in EFFECT given the agent's live placed caps? caps = World.heroCaps() (cap-object ids). A
   // grant with no object requirement is always effective; a null caps (unknown) is treated as effective (no false alarm).
   function grantEffective(key, caps) { const need = grantObject(key); if (!need) return true; if (!Array.isArray(caps)) return true; return caps.indexOf(need) >= 0; }

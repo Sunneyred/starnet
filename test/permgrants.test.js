@@ -23,7 +23,9 @@ ok(Array.isArray(GRANTABLE) && GRANTABLE.length >= 1, 'GRANTABLE is a non-empty 
 ok(GRANTABLE.includes('cabinet:write'), 'GRANTABLE includes the local file-write class');
 ok(!GRANTABLE.some(k => /:execute$/.test(k)), 'GRANTABLE contains NO execute class (autonomous exec is hard-locked)');
 ok(GRANTABLE.every(k => /^[a-z_]+:(read|write)$/.test(k)), 'every grantable key is a LOCAL read/write scope (never execute/send/publish/spend)');
-ok(GRANTABLE.every(k => /^cabinet:/.test(k)), 'v1 grantable capability is the local fs cabinet only');
+// ART STUDIO (Phase 5) adds 'art:write': art_prepare + mockup_render saving NEW image files in the jail. Still local-only.
+ok(GRANTABLE.every(k => /^(cabinet|art):write$/.test(k)), 'the grantable classes are the local fs cabinet and the local art-file writes only');
+ok(!GRANTABLE.includes('studio:write'), 'paid image generation (studio:write) is NOT pre-grantable — only the free local art writes are');
 
 // --- snapshot ---
 {

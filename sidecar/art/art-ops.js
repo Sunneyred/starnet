@@ -391,7 +391,26 @@ function makeArtOps(deps) {
     throw new ArtError('ART_BAD_OPTION', 'unknown recolor strategy ' + JSON.stringify(strategy) + ' (use none, outline or separate)');
   }
 
-  return { inspect, trim, removeBackground, fit, place, printCheck, layout, fabricContrast, recolorForFabric };
+  /* preview(buf, { maxEdge?, backgroundHex? }) — a SMALL copy to look at: the image scaled DOWN (never up) so its long
+     edge is at most maxEdge, flattened onto a background colour, as a JPEG. Print files are far too large to hand to a
+     vision model; this is what an agent (and the Gallery) looks at instead. It is a picture of the file, never the
+     file: nothing prints from it. The background is the fabric colour for a fabric product (what the print will sit
+     on), else a mid grey so both light and dark art on a transparent page stay visible. */
+  async function preview(buf, opts) {
+    const o = opts || {};
+    const img = await decode(buf);
+    const maxEdge = Math.max(64, Math.min(4096, Math.round(Number(o.maxEdge) || 1568)));
+    const k = Math.min(1, maxEdge / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * k)), h = Math.max(1, Math.round(img.height * k));
+    const bg = /^#[0-9a-f]{6}$/i.test(String(o.backgroundHex || '')) ? String(o.backgroundHex).toLowerCase() : '#7f7f7f';
+    const out = lib.createCanvas(w, h), g = out.getContext('2d');
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, w, h);
+    return { buffer: out.toBuffer('image/jpeg', 86), width: w, height: h, background: bg, scale: Math.round(k * 10000) / 10000 };
+  }
+
+  return { inspect, trim, removeBackground, fit, place, printCheck, layout, fabricContrast, recolorForFabric, preview };
 }
 
 /* The app's instance: @napi-rs/canvas, loaded on first use so a sidecar boot never pays for (or dies on) the

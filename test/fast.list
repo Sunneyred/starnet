@@ -82,6 +82,7 @@ test/art-plan-schema.test.js
 test/art-intake.test.js
 test/art-design-tools.test.js
 test/art-mockup.test.js
+test/art-gallery-routes.test.js
 test/workspace-recovery.test.js
 test/workspace-recovery-fresh-start.test.js
 test/workspace-lineage.test.js
