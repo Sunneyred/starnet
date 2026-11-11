@@ -29,6 +29,7 @@ function composeDesignItem(o) {
   lines.push(
     'Design id: ' + o.designId,
     'Design file: ' + o.storedRel + '   (a copy, in this line\'s working folder — use this path with the art tools)',
+    ...(o.previewRel ? ['Preview to LOOK at: ' + o.previewRel + '   (a small copy on mid grey — use this path with image_analyze)'] : []),
     'Original name: ' + o.originalName,
     'Size: ' + o.width + ' x ' + o.height + ' px' + (o.background ? ' · background: ' + o.background : ''),
     '',
@@ -71,8 +72,8 @@ function makeDesignIntake(deps) {
       const untouched = dup.status === 'new' && !dup.runIds.length && !dup.plan && !handedOut.has(dup.id) && /^designs\/dsn_/.test(dup.source.storedRel);
       if (!untouched) return { ok: false, skip: true, duplicateOf: dup.id, error: name + ' is the same image as design ' + dup.id + ' (' + dup.source.originalName + ') — not taken twice' };
       handedOut.add(dup.id);
-      return { ok: true, designId: dup.id, storedRel: dup.source.storedRel, resumed: true,
-        text: composeDesignItem({ triggerName: trigger.name, task: trigger.config && trigger.config.task, designId: dup.id, storedRel: dup.source.storedRel,
+      return { ok: true, designId: dup.id, storedRel: dup.source.storedRel, previewRel: dup.source.previewRel || null, resumed: true,
+        text: composeDesignItem({ triggerName: trigger.name, task: trigger.config && trigger.config.task, designId: dup.id, storedRel: dup.source.storedRel, previewRel: dup.source.previewRel || null,
           originalName: dup.source.originalName, width: dup.source.width, height: dup.source.height, background: backgroundWord(dup.facts) }) };
     }
 
@@ -97,10 +98,25 @@ function makeDesignIntake(deps) {
       await d.store.fail(rec.id, 'intake', msg).catch(d.onStoreError || require('../failopen.js').swallow('art.intake.fail-record'));
       return { ok: false, skip: true, designId: rec.id, error: msg + ' — recorded as failed design ' + rec.id };
     }
+    /* THE LOOK-AT COPY. A full-size design is often too large to hand to a vision model, so a small JPEG of it is
+       written beside the copy and named in the work item. It is a convenience: when it cannot be made the design
+       is still taken, the reason is noted on the record, and the item simply names no preview. */
+    let previewRel = null;
+    if (typeof d.artOps.preview === 'function') {
+      try {
+        const pv = await d.artOps.preview(buf, {});
+        previewRel = 'designs/' + rec.id + '/preview.jpg';
+        await d.fsp.writeFile(P.join(root, 'designs', rec.id, 'preview.jpg'), pv.buffer, { flag: 'wx' });
+        await d.store._internals.setPreviewRel(rec.id, previewRel);
+      } catch (e) {
+        previewRel = null;
+        await d.store.recordError(rec.id, 'intake', 'no small preview could be made (' + String((e && e.message) || e) + '); agents will have to look at the full-size file').catch(d.onStoreError || require('../failopen.js').swallow('art.intake.preview-note'));
+      }
+    }
     const bg = backgroundWord(facts);
     handedOut.add(rec.id);
-    return { ok: true, designId: rec.id, storedRel,
-      text: composeDesignItem({ triggerName: trigger.name, task: trigger.config && trigger.config.task, designId: rec.id, storedRel,
+    return { ok: true, designId: rec.id, storedRel, previewRel,
+      text: composeDesignItem({ triggerName: trigger.name, task: trigger.config && trigger.config.task, designId: rec.id, storedRel, previewRel,
         originalName: name, width: facts.width, height: facts.height, background: bg }) };
   };
 }

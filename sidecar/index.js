@@ -12459,6 +12459,15 @@ const ROUTES = [
   // back to it (sidecar/routing/linejobs.js). GETs are read-only; …/note records what the Commander changed because of a job.
   { m: 'GET', qsplit: '/api/line-jobs', h: handleLineJobsList },
   { m: ['GET', 'POST'], rx: LINE_JOB_RX, h: handleLineJobId },
+  // ART STUDIO (Phase 5): the Gallery's API — design records, the images those records name, the owner's decisions,
+  // and export. Token-gated like every /api route. Handlers live in sidecar/art/gallery-routes.js.
+  { m: 'GET', exact: '/api/art/designs', h: (req, res) => artRoutes.designs(req, res) },
+  { m: 'GET', qsplit: '/api/art/file', h: (req, res) => artRoutes.file(req, res) },
+  { m: 'POST', exact: '/api/art/designs/approve', h: (req, res) => artRoutes.approve(req, res) },
+  { m: 'POST', exact: '/api/art/designs/rights', h: (req, res) => artRoutes.rights(req, res) },
+  { m: 'POST', exact: '/api/art/designs/export', h: (req, res) => artRoutes.exportDesign(req, res) },
+  { m: 'POST', exact: '/api/art/designs/resume', h: (req, res) => artRoutes.resume(req, res) },
+  { m: 'POST', exact: '/api/art/setup', h: (req, res) => artRoutes.setup(req, res) },
   { m: 'GET', exact: '/api/budget/status', h: handleBudgetStatus },
   { m: 'GET', exact: '/api/usage/providers', h: handleUsageProviders },
   { m: 'GET', qsplit: '/api/credits', h: handleCredits },   // 404s (no surface) unless managed credits are configured
@@ -13796,7 +13805,7 @@ function makeTriggerHub(hooks) {
    first stage's work item is composed from the record. The image library loads on the first drop, never at boot. */
 const artDesignIntake = require('./art/intake.js').makeDesignIntake({
   fsp, path, store: artDesignStore,
-  artOps: { inspect: (buf) => require('./art/art-ops.js').defaultArtOps().inspect(buf) },
+  artOps: { inspect: (buf) => require('./art/art-ops.js').defaultArtOps().inspect(buf), preview: (buf, o) => require('./art/art-ops.js').defaultArtOps().preview(buf, o) },
   sha256: (buf) => crypto.createHash('sha256').update(buf).digest('hex'),
   lineRoot: (lineId) => {
     const plan = router.getPlan();
@@ -13828,6 +13837,40 @@ const triggerRunner = makeTriggerRunner({
   folderConflict: (p) => { const root = triggerLineRoots().find(r => p && triggerFolderPolicy.inside(p, r)); return root ? lineOutputError(root) : null; },
   now: () => Date.now(), newId: () => crypto.randomUUID(),
   warn: (m) => console.warn(m)
+});
+/* ART STUDIO — the Gallery's routes. Spend is summed from the run ledger by the run ids each design recorded (never
+   estimated); an owner "redo" restarts the design's own line through its ART DROP trigger, under that line's budget. */
+const artRoutes = require('./art/gallery-routes.js').makeArtRoutes({
+  store: artDesignStore, fs, fsp, path, respondJson, readBody,
+  catalog: () => require('./art/products.js').loadCatalog({ fs, overridePath: path.join(WORKSPACES, 'art-products.json') }),
+  spendOf: (runIds) => {
+    let usd = 0, n = 0;
+    for (const id of runIds) { const r = runStore.latest(id); if (r && Number.isFinite(Number(r.usd))) { usd += Number(r.usd); n++; } }
+    return n ? { usd } : null;
+  },
+  grantState: () => ({ artWrite: grantsPermanent.has('art:write') }),
+  // setup: the same folder-watch policy a trigger meets, and the same trust path the Projects list uses (the owner's click)
+  checkDropFolder: (p) => triggerFolderPolicy.check(p),
+  blessProject: (p) => projectBless.blessPath({ path: p, surface: 'interactive' }),
+  // carry on with a design that stopped part-way: the same ART DROP trigger, the same budget, the record decides what is left
+  resume: async (rec) => {
+    const tid = rec.source.triggerId;
+    if (!tid || !triggerRunner.get(tid)) return { ok: false, error: 'the art drop that took this design no longer exists, so the line was not started' };
+    const text = ['[Art resume: the owner asked the line to carry on with this design]', '', 'Design id: ' + rec.id, 'Design file: ' + rec.source.storedRel,
+      ...(rec.source.previewRel ? ['Preview to LOOK at: ' + rec.source.previewRel] : []), '',
+      'This design stopped before it was finished. Read its record first (design_get) and do only what is still missing.'].join('\n');
+    const r = triggerRunner.enqueue(tid, { text, preview: 'RESUME ' + rec.source.originalName, source: rec.source.storedRel });
+    return r && r.ok ? { ok: true } : { ok: false, error: (r && r.error) || 'the line refused the item' };
+  },
+  rerun: async (rec, productId, note) => {
+    const tid = rec.source.triggerId;
+    if (!tid || !triggerRunner.get(tid)) return { ok: false, error: 'the redo is recorded, but the art drop that took this design no longer exists, so the line was not restarted' };
+    const text = ['[Art redo: the owner sent a product back]', '', 'Design id: ' + rec.id, 'Design file: ' + rec.source.storedRel,
+      'Product to redo: ' + productId, 'The owner\'s note: ' + (note || '(none given)'), '',
+      'This design already has a plan. Do not re-plan it. Remake ONLY this product following the owner\'s note, review it, and mock it up.'].join('\n');
+    const r = triggerRunner.enqueue(tid, { text, preview: 'REDO ' + productId, source: rec.source.storedRel });
+    return r && r.ok ? { ok: true } : { ok: false, error: 'the redo is recorded, but the line was not restarted: ' + ((r && r.error) || 'refused') };
+  }
 });
 /* SEND TO (2026-10-10) — sidecar/routing/handoff-runner.js. A job that leaves its line clean at an OUTBOX that sends on starts
    the target line's OWN job through the trigger hub, scoped to the TARGET line (its INBOX picks the dock, its crew runs it, its

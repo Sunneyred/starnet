@@ -414,7 +414,7 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     ctx.Build.goalLine = () => ({ id: 'no_such_line', why: 'w', quote: 'q' });
     A.eq(tilesOf(WW._newHTML(WW._floor())).length, 4, 'an unknown goal id adds nothing');
     A.ok(/More ready-made workflows are in the Build Library ›/.test(WW._newHTML(WW._floor())), 'the More ready-made workflows link stays, in the SET IT UP note\'s word (org D5 polish)');
-    A.ok(/picks one of 20 ready-made workflows/.test(WW._newHTML(WW._floor())), 'SET IT UP FOR ME says it chooses from the whole shelf, in this page\'s word (workflows, org D11)');
+    A.ok(/picks one of 21 ready-made workflows/.test(WW._newHTML(WW._floor())), 'SET IT UP FOR ME says it chooses from the whole shelf, in this page\'s word (workflows, org D11)');
     delete ctx.Build.goalLine;
     S.pick = S0.pick; S.drafting = S0.drafting;
     const buildSrc = rd('frontend/app/build.js');

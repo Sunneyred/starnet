@@ -45,6 +45,8 @@ dev/.shots-walljoin/
 # COMMS conversation seed + shooter (seed-comms-convo.js / comms-convo-shots.mjs; never committed)
 dev/.scratch-comms-convo*/
 dev/.shots-comms-convo/
+# GALLERY live walk shots (dev/gallery-shots.mjs; never committed)
+dev/.shots-gallery/
 
 # rust / tauri desktop shell build output
 src-tauri/target/

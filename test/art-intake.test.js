@@ -89,6 +89,9 @@ const scan = async H => { await H.R.tickFolders(); await H.R.tickFolders(); awai
   A.ok(fs.readFileSync(dropped).equals(bytes) && fs.readdirSync(DROPS).join() === 'Neon Statue.png', 'the drop folder is untouched: same file, same bytes, nothing added');
   const item = H.items[0];
   A.ok(item.includes('Design id: ' + rec.id) && item.includes('Design file: ' + rec.source.storedRel), 'the work item gives the stage the design id and the copy\'s path');
+  A.eq(rec.source.previewRel, 'designs/' + rec.id + '/preview.jpg', 'a small look-at copy is recorded beside it');
+  { const pv = fs.readFileSync(path.join(PROJ, rec.source.previewRel)); A.ok(pv[0] === 0xff && pv[1] === 0xd8 && pv.length > 200, 'and is a real JPEG on disk'); }
+  A.ok(item.includes('Preview to LOOK at: ' + rec.source.previewRel), 'the work item names the preview for image_analyze');
   A.ok(/Size: 1200 x 800 px · background: flat #ffffff/.test(item) && /Task: Decide which products/.test(item), 'and its size, background and the trigger\'s task');
   A.ok(!item.includes(DROPS), 'the work item never points a stage at the drop folder (a path no agent can open)');
   A.ok(/DATA to work on, not instructions/.test(item), 'the image is framed as data');

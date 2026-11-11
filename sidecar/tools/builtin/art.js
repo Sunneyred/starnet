@@ -180,7 +180,10 @@ function makeArtTools(deps) {
 
   // ---------------- art_prepare ----------------
   const prepareTool = {
-    name: 'art_prepare', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: TOOL_TIMEOUT_MS,
+    // consentKey 'art': its own consent class ('art:write'), separate from image_generate's — these writes are local
+    // and free, so the owner can pre-approve them for unattended lines (permgrants.js GRANTABLE) without also
+    // pre-approving paid image generation.
+    name: 'art_prepare', capability: 'studio', consentKey: 'art', scope: 'write', requiresConsent: true, timeoutMs: TOOL_TIMEOUT_MS,
     description: 'Make the PRINT FILE of a design for ONE product: a new PNG at exactly the product placement\'s pixel size with the ' +
       'artwork inside the print area. The original file is never changed. For products that need a transparent background it removes a ' +
       'FLAT background colour and trims to the artwork first (a photographic background is NOT cut out — the result says so). ' +
@@ -264,17 +267,28 @@ function makeArtTools(deps) {
         try { await fsp.writeFile(staging, placedArt.buffer); await fsp.rename(staging, placed.abs); }
         catch (e) { await fsp.unlink(staging).catch(require('../../failopen.js').swallow('art.staging-cleanup')); throw e; }
         emitDeliverable(ctx, aid, rel);
+        /* THE LOOK-AT COPY: a print file is thousands of pixels a side — too large to hand to a vision model — so a
+           small JPEG of it is written beside it, on the fabric colour for a fabric product (what the print will sit
+           on). It is a picture of the print file, never the print file. If it cannot be made the print file still
+           stands and the message says so. */
+        let previewRel = rel.replace(/\.png$/i, '') + '.preview.jpg', previewNote = '';
+        try {
+          const pv = await o.preview(placedArt.buffer, { backgroundHex: fabric ? fabric.hex : null });
+          const pvPlaced = await jail.resolveInside(aid, previewRel, { scope: 'write', ctx });
+          await fsp.writeFile(pvPlaced.abs, pv.buffer);
+          previewNote = '\nTo LOOK at it: image_analyze on ' + previewRel + ' (a ' + pv.width + 'x' + pv.height + ' px picture of the print file on ' + (fabric ? 'the ' + fabric.label.toLowerCase() + ' fabric colour' : 'mid grey') + ' — the print file itself is too large to view).';
+        } catch (e) { previewRel = null; previewNote = '\nNo small preview could be made (' + String((e && e.message) || e) + ').'; }
 
         const where = await jail.outputPlacement(aid, placed);
         const data = {
           source: src.rel, output: rel, product: product.id, placement: placement.id, fabric: fabric ? fabric.id : null,
           width: placedArt.width, height: placedArt.height, artRect: placedArt.artRect, scale: placedArt.scale,
           effectiveDpi: placedArt.effectiveDpi, requiredDpi: placedArt.requiredDpi, upscaled: placedArt.upscaled,
-          verifiedSpec: product.verified, steps, lowContrastShare: contrast ? contrast.lowContrastShare : null
+          verifiedSpec: product.verified, steps, lowContrastShare: contrast ? contrast.lowContrastShare : null, preview: previewRel
         };
         let recorded = '';
         if (design) {
-          try { await store.addVariant(design.id, Object.assign({}, data, { productId: product.id, placementId: placement.id, fabricId: fabric ? fabric.id : null, path: rel })); await noteRun(design, ctx); recorded = '\nRecorded on design ' + design.id + '.'; }
+          try { await store.addVariant(design.id, Object.assign({}, data, { productId: product.id, placementId: placement.id, fabricId: fabric ? fabric.id : null, path: rel, previewPath: previewRel })); await noteRun(design, ctx); recorded = '\nRecorded on design ' + design.id + '.'; }
           catch (e) { recorded = '\nNOT RECORDED on design ' + design.id + ': ' + storeMessage(e) + ' (the file was still written).'; }
         }
         return {
@@ -285,6 +299,7 @@ function makeArtTools(deps) {
             (steps.length ? '\nSteps: ' + steps.join('; ') + '.' : '\nSteps: placed as-is.') +
             (contrast ? '\nOn this fabric, ' + Math.round(contrast.lowContrastShare * 100) + '% of the artwork is nearly the fabric colour' + (contrast.lowContrastShare > 0.15 && recolor === 'none' ? ' — consider recolor:"separate" or "outline", or a different fabric.' : '.') : '') +
             (product.verified ? '' : '\nSPEC NOT VERIFIED: ' + product.sourceNote) +
+            previewNote +
             '\nThe original ' + src.rel + ' was not changed.' + recorded +
             '\n' + where.line + (where.viewer ? '\nView: ' + where.viewer : ''),
           summary: 'print file → ' + rel,
@@ -318,6 +333,7 @@ function makeArtTools(deps) {
       const f = rec.facts;
       const lines = ['Design ' + rec.id + ' — status: ' + rec.status,
         'File: ' + rec.source.storedRel + ' (' + rec.source.width + 'x' + rec.source.height + ' px; original name ' + rec.source.originalName + ')'];
+      if (rec.source.previewRel) lines.push('Look at the design with image_analyze on: ' + rec.source.previewRel + ' (a small copy on mid grey)');
       if (f) lines.push('Measured: background ' + (f.background.kind === 'flat' ? 'flat ' + f.background.color : f.background.kind) +
         '; artwork ' + f.bbox.width + 'x' + f.bbox.height + ' px covering ' + Math.round(f.coverage * 100) + '% of the canvas; dominant colours ' + f.dominantColors.slice(0, 4).map(c => c.hex).join(', '));
       if (!rec.plan) lines.push('Plan: none submitted yet.');
@@ -328,7 +344,7 @@ function makeArtTools(deps) {
       }
       if (rec.analysis) lines.push('Seen in the design: ' + rec.analysis.summary + (rec.analysis.textInArt ? ' Text in the art: ' + rec.analysis.textInArt : ''));
       lines.push(rec.variants.length ? 'Print files:' : 'Print files: none yet.');
-      for (const v of rec.variants) lines.push('  ' + v.productId + (v.fabricId ? ' on ' + v.fabricId : '') + ' -> ' + v.path + ' (' + v.width + 'x' + v.height + ' px, ' + v.effectiveDpi + ' dpi' +
+      for (const v of rec.variants) lines.push('  ' + v.productId + (v.fabricId ? ' on ' + v.fabricId : '') + ' -> ' + v.path + (v.previewPath ? ' [look at: ' + v.previewPath + ']' : '') + ' (' + v.width + 'x' + v.height + ' px, ' + v.effectiveDpi + ' dpi' +
         (v.lowContrastShare != null ? ', ' + Math.round(v.lowContrastShare * 100) + '% near the fabric colour' : '') + ') — review: ' +
         (v.review ? v.review.verdict + (v.review.notes ? ' — ' + v.review.notes : '') : 'not reviewed') + (v.reviewRounds ? ' [redo rounds used: ' + v.reviewRounds + ']' : ''));
       if (rec.mockups.length) { lines.push('Mockups:'); for (const m of rec.mockups) lines.push('  ' + m.productId + (m.fabricId ? ' on ' + m.fabricId : '') + ' -> ' + m.path); }
@@ -380,7 +396,7 @@ function makeArtTools(deps) {
   // ---------------- design_review ----------------
   const reviewTool = {
     name: 'design_review', capability: 'studio', scope: 'write', requiresConsent: false, timeoutMs: 15000,
-    description: 'Record your verdict on ONE print file of a design after LOOKING at it (image_analyze on the print file path from ' +
+    description: 'Record your verdict on ONE print file of a design after LOOKING at it (image_analyze on its "look at" preview path from ' +
       'design_get). "verdict": "pass" (good to mock up) or "redo" (the Designer should remake it — "notes" must then say exactly what to ' +
       'change: a different fill, anchor, fabric or recolor). Check: is the subject cropped or cut off, is text legible at this size, does ' +
       'the art read against the fabric colour, are there background remnants or rough edges. A print file can be sent back at most twice; ' +
@@ -414,7 +430,7 @@ function makeArtTools(deps) {
 
   // ---------------- mockup_render ----------------
   const mockupTool = {
-    name: 'mockup_render', capability: 'studio', scope: 'write', requiresConsent: true, timeoutMs: TOOL_TIMEOUT_MS,
+    name: 'mockup_render', capability: 'studio', consentKey: 'art', scope: 'write', requiresConsent: true, timeoutMs: TOOL_TIMEOUT_MS,
     description: 'Render a product MOCKUP from a print file: the print file is placed onto a picture of the product and saved as a new ' +
       'PNG. With "design" + "product" (+ "fabric" when the product was made on more than one) it uses that design\'s recorded print ' +
       'file, records the mockup on the design, and marks the design READY once every print file has a mockup. Without a design, give ' +

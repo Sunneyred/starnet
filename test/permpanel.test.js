@@ -36,7 +36,8 @@ ok(/write|files/i.test(P.describeLevel('full')), "full's blurb mentions writing 
 ok(/can'?t|never/i.test(P.describeLevel('full')), "full's blurb still names the hard limits (can't send/spend/run)");
 
 // --- the curated catalog ---
-eq(P.grantableKeys(), ['cabinet:write'], 'the only grantable class is local file writes');
+// ART STUDIO (Phase 5) adds the second local-only class: the art line's own print-file / mockup writes.
+eq(P.grantableKeys(), ['cabinet:write', 'art:write'], 'the grantable classes are local file writes and the art line\'s local image writes');
 ok(P.isGrantable('cabinet:write') && !P.isGrantable('net:send'), 'isGrantable gates to the catalog');
 eq(P.catalogLabel('cabinet:write'), 'Write files on its own', 'catalog label');
 ok(P.describeGrant('cabinet:write').length > 20, 'curated grant has a real description');

@@ -197,5 +197,22 @@ const EMPTY = draw(50, 50, () => {});
   const again = await ops.place(wide, SAFE, { fill: 0.5 });
   A.ok(Buffer.compare(again.buffer, half.buffer) === 0, 'the same input and options give byte-identical output');
 
+  /* ---- preview: the small copy an agent (or the Gallery) looks at ---- */
+  {
+    const big = C.createCanvas(4500, 5400); { const g = big.getContext('2d'); g.fillStyle = '#ff00aa'; g.fillRect(1000, 1000, 2500, 3400); }
+    const src = big.toBuffer('image/png');
+    const pv = await ops.preview(src, { backgroundHex: '#0B0B0B' });
+    A.eq([pv.width, pv.height, pv.background], [1307, 1568, '#0b0b0b'], 'a print-size image is scaled down to a 1568 px long edge, proportions kept');
+    A.ok(pv.buffer[0] === 0xff && pv.buffer[1] === 0xd8 && pv.buffer.length < 600000, 'it is a small JPEG (' + pv.buffer.length + ' bytes)');
+    const back = await C.loadImage(pv.buffer), cv = C.createCanvas(back.width, back.height), g = cv.getContext('2d'); g.drawImage(back, 0, 0);
+    const corner = g.getImageData(5, 5, 1, 1).data, mid = g.getImageData(650, 780, 1, 1).data;
+    A.ok(corner[0] < 30 && corner[1] < 30 && corner[2] < 30, 'the transparent page is shown on the fabric colour asked for');
+    A.ok(mid[0] > 230 && mid[1] < 40 && mid[2] > 140, 'the artwork is where it was');
+    const small = C.createCanvas(300, 200).toBuffer('image/png');
+    const sp = await ops.preview(small, {});
+    A.eq([sp.width, sp.height, sp.scale, sp.background], [300, 200, 1, '#7f7f7f'], 'a small image is never enlarged; the default background is mid grey');
+    A.ok(Buffer.compare(src, big.toBuffer('image/png')) === 0, 'the source bytes are untouched');
+  }
+
   A.report('art-ops.test');
 })().catch(e => { console.error(e); process.exit(1); });

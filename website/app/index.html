@@ -47,6 +47,7 @@
 <link rel="stylesheet" href="css/deskscreen.css"><!-- DESK SCREEN: click an agent's workstation → its live work -->
 <link rel="stylesheet" href="css/workflow-panel.css"><!-- the DOCKED Workflow panel of BUILD MODE (workflowpanel.js) — rides the refit glass tokens -->
 <link rel="stylesheet" href="css/workflows-window.css"><!-- WORK › WORKFLOWS (windows/workflows.js): the Workflow panel glass, restated on its own docked window -->
+<link rel="stylesheet" href="css/gallery.css"><!-- MY WORK › GALLERY (windows/gallery.js): dropped designs, their print files and mockups, the owner's decisions -->
 <link rel="stylesheet" href="css/deliverables-glass.css"><!-- MY WORK › DELIVERABLES: the current glass on its keys, fields and lead line -->
 <link rel="stylesheet" href="css/utility-menus.css?v=1">
 <link rel="stylesheet" href="css/glass-demo.css">
@@ -977,6 +978,8 @@
 <script src="app/windows/rewind.js"></script><!-- RESTORE dossier lane — per-agent workspace checkpoints, two-step confirmed restore (mounts in the AGENTS dossier) -->
 <script src="app/windows/outbox.js"></script><!-- OUTBOX — FINISHED WORK: uncollected finished runs, readable + rateable accordion -->
 <script src="app/windows/workflows.js"></script><!-- WORK › WORKFLOWS: pick a workflow, send it a job, read the result, change it, send it again — its own docked window, never Build Mode -->
+<script src="app/gallery.js"></script><!-- GALLERY readings (pure): the art lines on the floor, the setup checklist, each design's card — from records and server facts only -->
+<script src="app/windows/gallery.js"></script><!-- MY WORK › GALLERY: what the art line made of each dropped design; approve / send back / export -->
 <script src="app/windows/automation.js"></script><!-- AUTOMATION — the merged ROUTINES+LOOPS console window; owns the window slot + the lane registry the next two files register into -->
 <script src="app/schedpicker.js"></script><!-- the WHEN builder (cadence keys + day chips + clock) the ROUTINES lane mounts; types a real schedule into the same text input the form always posted -->
 <script src="app/windows/routines.js"></script><!-- ROUTINES lane — scheduled autonomous runs (thin CRUD client over /api/cron) -->

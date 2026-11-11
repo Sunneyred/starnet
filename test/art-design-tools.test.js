@@ -85,6 +85,9 @@ const PLAN = designId => ({ design: designId,
   A.eq(r.summary, 'print file → designs/' + ID + '/print/tee-front-black.png', 'the print file goes beside the design, with no path given (the recorded file was used)');
   A.ok(new RegExp('Recorded on design ' + ID + '\\.').test(r.content), 'the result says it was recorded');
   A.ok(fs.existsSync(path.join(WS, 'designs', ID, 'print', 'tee-front-black.png')), 'the file is on disk');
+  A.ok(/To LOOK at it: image_analyze on designs\/[a-z0-9_]+\/print\/tee-front-black\.preview\.jpg \(a \d+x1568 px picture of the print file on the black fabric colour/.test(r.content), 'the result names a small preview to look at, and says what it is');
+  A.ok(fs.statSync(path.join(WS, 'designs', ID, 'print', 'tee-front-black.preview.jpg')).size < 1000000, 'the preview is on disk and small');
+  A.eq(store.get(ID).variants[0].previewPath, 'designs/' + ID + '/print/tee-front-black.preview.jpg', 'and is recorded on the print file\'s row');
   A.ok(fs.readFileSync(path.join(WS, rel)).equals(bytes), 'the design\'s own copy is unchanged');
   rec = store.get(ID);
   A.eq([rec.status, rec.variants.length, rec.variants[0].path, rec.variants[0].width, rec.variants[0].effectiveDpi, rec.variants[0].verifiedSpec],

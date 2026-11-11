@@ -95,7 +95,7 @@ function makeDesignStore(deps) {
       const rec = {
         id, createdAt: at, updatedAt: at, status: 'new',
         source: { originalName: text(src.originalName, 260), droppedPath: text(src.droppedPath, 4096), projectRoot: text(src.projectRoot, 4096),
-          storedRel: text(src.storedRel, 600), sha256: src.sha256, bytes: num(src.bytes), width: src.width, height: src.height,
+          storedRel: text(src.storedRel, 600), previewRel: text(src.previewRel || '', 600) || null, sha256: src.sha256, bytes: num(src.bytes), width: src.width, height: src.height,
           lineId: text(src.lineId, 80), triggerId: text(src.triggerId, 80) },
         facts: src.facts && typeof src.facts === 'object' ? clone(src.facts) : null,   // art-ops inspect at intake (measured, not judged)
         analysis: null, plan: null, variants: [], mockups: [], approvals: {},
@@ -132,7 +132,7 @@ function makeDesignStore(deps) {
       if (!planned) throw new DesignError('DESIGN_NOT_IN_PLAN', 'product ' + JSON.stringify(v.productId) + ' is not in design ' + id + '\'s plan (' + rec.plan.products.map(p => p.productId).join(', ') + ')');
       if (!text(v.path)) throw new DesignError('DESIGN_BAD_VARIANT', 'a variant needs the path of the print file that was written');
       const row = { productId: text(v.productId, 60), placementId: text(v.placementId, 60), fabricId: text(v.fabricId || '', 60) || null,
-        path: text(v.path, 600), width: posInt(v.width), height: posInt(v.height), effectiveDpi: num(v.effectiveDpi), requiredDpi: num(v.requiredDpi),
+        path: text(v.path, 600), previewPath: text(v.previewPath || '', 600) || null, width: posInt(v.width), height: posInt(v.height), effectiveDpi: num(v.effectiveDpi), requiredDpi: num(v.requiredDpi),
         upscaled: !!v.upscaled, verifiedSpec: !!v.verifiedSpec, steps: Array.isArray(v.steps) ? v.steps.slice(0, 12).map(s => text(s, 300)) : [],
         lowContrastShare: v.lowContrastShare == null ? null : num(v.lowContrastShare),
         madeAt: now(), reviewRounds: 0, review: null };
@@ -268,7 +268,9 @@ function makeDesignStore(deps) {
     },
     _internals: { durable, KEY,
       // intake only: the copy's final path is known once the record (and so its id) exists
-      setStoredRel(id, rel) { return mutate(id, rec => { rec.source.storedRel = text(rel, 600); }); } }
+      setStoredRel(id, rel) { return mutate(id, rec => { rec.source.storedRel = text(rel, 600); }); },
+      // intake only: the small look-at copy of the design (art-ops preview), written after the original's copy
+      setPreviewRel(id, rel) { return mutate(id, rec => { rec.source.previewRel = text(rel || '', 600) || null; }); } }
   };
 }
 

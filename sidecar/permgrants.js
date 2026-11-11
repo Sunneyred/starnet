@@ -43,7 +43,11 @@
   // capability:scope (see permissions.js). 'cabinet:write' = the fs.write/edit/append/patch family — create
   // and edit files INSIDE the agent's jailed workspace (.env/.git stay hardline-blocked; every write is
   // checkpointed + reversible). Keep this list tiny and local; never add execute/network/send classes here.
-  const GRANTABLE = ['cabinet:write'];
+  // 'art:write' (Art Studio Phase 5) = art_prepare + mockup_render (their consentKey is 'art'): save a NEW print file
+  // or mockup png inside the workspace jail / the art line's own folder. Local only — no network, no spend, no
+  // command, and never over the original design (the tools refuse that themselves). It is what lets an ART DROP line
+  // finish a design with nobody watching; without it every print file waits for a prompt that has no one to answer it.
+  const GRANTABLE = ['cabinet:write', 'art:write'];
 
   function makeGrantManager(opts) {
     opts = opts || {};
