@@ -1,0 +1,126 @@
+# Art Studio Phase 1a — does the art engine's image library load in an INSTALLED Windows app?
+#
+# The art engine is built on @napi-rs/canvas, a native module. Loading in a dev checkout proves nothing about an
+# installed build, where node_modules is a staged tree beside sidecar/ and Node is the bundled runtime. This job
+# builds the real NSIS installer, installs it silently on a clean Windows runner, and runs
+# sidecar/art/canvas-probe.js with the INSTALLED node.exe against the INSTALLED sidecar.
+#
+# It is also the first real compile of the Phase 0 fork-identity changes (src-tauri/src/brand.rs and friends),
+# and it checks that the installed app landed under the fork's own name, not upstream's.
+#
+# Unsigned, never published: no secrets are read and nothing is uploaded except the probe report.
+name: art-canvas-windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'art-studio/phase-1-**'
+    paths:
+      - 'sidecar/art/canvas-probe.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/stage-voice-deps.mjs'
+      - 'src-tauri/**'
+      - '.github/workflows/art-canvas-windows.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: art-canvas-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packaged-canvas-probe:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: win-x64-art
+
+      - run: npm ci
+
+      - name: Probe in the dev checkout (baseline for the packaged result)
+        shell: bash
+        run: node sidecar/art/canvas-probe.js
+
+      - name: Stage bundled Node sidecar runtime
+        shell: bash
+        run: |
+          node scripts/prepare-node.mjs win-x64
+          node scripts/stage-voice-deps.mjs --target win-x64
+          node scripts/stage-frontend-dist.mjs
+
+      - name: Build the unsigned NSIS installer
+        shell: bash
+        run: npm run tauri -- build --verbose --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: Install silently and run the probe with the installed runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter *.exe | Select-Object -First 1
+          if (-not $installer) { throw 'no NSIS installer was produced' }
+          Write-Host "installer: $($installer.Name) ($([math]::Round($installer.Length/1MB,1)) MB)"
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exited $($p.ExitCode)" }
+
+          $conf = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          $dir = Join-Path $env:LOCALAPPDATA $conf.productName
+          if (-not (Test-Path $dir)) {
+            Write-Host "LOCALAPPDATA children:"; Get-ChildItem $env:LOCALAPPDATA | Select-Object -ExpandProperty Name
+            throw "the app did not install under '$dir'"
+          }
+          $upstream = Join-Path $env:LOCALAPPDATA 'StarNet'
+          if (Test-Path $upstream) { throw "an upstream-named install folder exists: $upstream" }
+
+          $node  = Get-ChildItem -Path $dir -Recurse -Filter node.exe | Select-Object -First 1
+          $probe = Get-ChildItem -Path $dir -Recurse -Filter canvas-probe.js | Select-Object -First 1
+          $brand = Get-ChildItem -Path $dir -Recurse -Filter brand.js | Where-Object { $_.FullName -match 'frontend' } | Select-Object -First 1
+          if (-not $node)  { throw 'installed node.exe not found' }
+          if (-not $probe) { throw 'installed sidecar/art/canvas-probe.js not found' }
+          if (-not $brand) { throw 'installed frontend/app/brand.js not found (the sidecar requires it at boot)' }
+          Write-Host "install dir : $dir"
+          Write-Host "node        : $($node.FullName)"
+          Write-Host "probe       : $($probe.FullName)"
+
+          # run from a neutral directory so nothing resolves from the checkout
+          Push-Location $env:TEMP
+          $out = & $node.FullName $probe.FullName
+          $code = $LASTEXITCODE
+          Pop-Location
+          Write-Host $out
+          New-Item -ItemType Directory -Force -Path probe-report | Out-Null
+          $out | Set-Content -Path probe-report/packaged-canvas-probe.json -Encoding utf8
+
+          $r = $out | ConvertFrom-Json
+          $lines = @('## Packaged canvas probe (Windows, installed app)', '',
+            "- result: **$(if ($r.ok) { 'PASS' } else { 'FAIL' })**",
+            "- library: $($r.library) $($r.version)",
+            "- resolved from: ``$($r.resolvedFrom)``",
+            "- runtime: node $($r.node) $($r.platform)/$($r.arch)",
+            "- install dir: ``$dir``", '', '| check | ok | detail |', '| --- | --- | --- |')
+          foreach ($c in $r.checks) { $lines += "| $($c.name) | $($c.ok) | $($c.detail) |" }
+          $lines -join "`n" | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
+          if ($code -ne 0 -or -not $r.ok) { throw "packaged canvas probe FAILED: $($r.error)" }
+          if ($r.resolvedFrom -notlike "$dir*") { throw "the probe resolved the library from OUTSIDE the install: $($r.resolvedFrom)" }
+
+      - name: Upload the probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: packaged-canvas-probe
+          path: probe-report/
+          if-no-files-found: warn

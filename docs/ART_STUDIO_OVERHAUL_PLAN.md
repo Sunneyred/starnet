@@ -286,7 +286,28 @@ Acceptance:
 
 ### Phase 1 — Art engine and product catalog
 
-**STATUS:** not started
+**STATUS:** 1a in progress on branch `art-studio/phase-1-art-engine` (2026-11-11). 1b–1d not started.
+
+#### Phase 1a record (the image-library spike)
+
+- `@napi-rs/canvas` 0.1.100 moved from `devDependencies` to `dependencies`. Upstream kept it dev-only and its
+  staging step (`scripts/stage-voice-deps.mjs`) drops dev-only packages by reading the lockfile, so as a dev
+  dependency it would never have reached an installed app. No change to the staging script was needed.
+- `sidecar/art/canvas-probe.js` exercises every primitive the engine needs: load, PNG and JPEG encode and decode,
+  exact pixel reads with alpha, a 4500×5400 print-size canvas, writing pixels back, multiply blend, masking and a
+  clipped affine transform (how the mockup perspective warp will be drawn). It prints one JSON line and exits 0
+  only if every check passed. `test/art-canvas-probe.test.js` proves the probe fails honestly when the library
+  is missing, hollow or has one broken primitive.
+- **Proven in the sandbox (Linux):** the probe passes in the checkout, and passes from an install-shaped folder
+  (a copy of `sidecar/` beside the staged `node_modules`, run from another directory), resolving the library from
+  the staged tree.
+- **Not yet proven: Windows, installed app.** `.github/workflows/art-canvas-windows.yml` builds the unsigned NSIS
+  installer on a Windows runner, installs it silently, and runs the probe with the installed `node.exe` against
+  the installed sidecar. It is also the first real compile of the Phase 0 Rust changes, and it checks the app
+  installs under its own folder name. **Decision rule stands:** build on `@napi-rs/canvas` only once that job is
+  green; if it cannot be made green, `jimp` goes behind the same adapter.
+- The workflow runs on pushes to `art-studio/phase-1-**` and can be started by hand from the repo's Actions tab.
+  GitHub turns workflows off on a new fork until the owner enables them on that tab.
 
 **1a. Pick the image library (spike first, about one session).**
 - Preferred: **`@napi-rs/canvas`**. It's already in the tree as a devDependency (`package.json`, `0.1.100`), has
